@@ -1,0 +1,57 @@
+body {
+  font-size: 12pt;
+  margin-bottom: 50px;
+  color: black;
+}
+.caption, caption {
+  color: #666666; font-size: 10pt; width: 90%; margin: 5px auto; text-align: left; caption-side: bottom;
+}
+h1 { font-size: 20pt; }
+h2 { font-size: 18pt; }
+h3 { font-size: 16pt; }
+h4 { font-size: 14pt; }
+h5 { font-size: 14pt; }
+h6 { font-size: 14pt; }
+
+.author { font-size: 14pt; }
+
+a, a:hover, a:active { color: #36b; text-decoration: none; }
+a:visited { color: #0b0080; text-decoration: none; }
+
+.sql { font-size: 10pt; }
+
+dl {
+  margin-left: 0.1in;
+}
+dl dt {
+  font-style: italic;
+}
+dl dd {
+  margin: 0.01in 0 0.05in 0.25in;
+}
+
+.test-group-1 { color: #E41A1C; }
+.test-group-2 { color: #377EB8; }
+.no-italics { font-style: normal; }
+
+#references {
+  margin-bottom: 50px;
+}
+
+.footnotes {
+  margin-bottom: 80%;
+}
+
+#wmf {
+	background-image: url('https://upload.wikimedia.org/wikipedia/commons/0/09/Wikimedia_Foundation_logo_-_horizontal.svg');
+	background-position: center center;
+	background-repeat: no-repeat;
+	vertical-align: middle;
+	width: 160px;
+	height: 37px;
+	margin: 0 auto;
+}
+
+.tocify-extend-page {
+  display: none;
+}

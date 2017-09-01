@@ -1,0 +1,244 @@
+---
+title: "[WIP] First assessment of learning-to-rank"
+subtitle: "Testing machine-learned ranking of search results on English Wikipedia"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+author:
+- affiliation: "Senior Software Engineer, Wikimedia Foundation"
+  name: "Erik Bernhardson"
+- affiliation: "Software Engineer, Wikimedia Foundation"
+  name: "David Causse"
+- affiliation: "Senior Software Engineer, Wikimedia Foundation"
+  name: "Trey Jones"
+- affiliation: "Data Analyst, Wikimedia Foundation"
+  name: "Mikhail Popov"
+- affiliation: "Product Manager, Wikimedia Foundation"
+  name: "Deb Tankersley"
+abstract: >
+  SUMMARY
+output:
+  html_document:
+    includes:
+      after_body: suffix.html
+    code_folding: hide
+    css: style.css
+    fig_caption: yes
+    fig_width: 10
+    fig_height: 6
+    highlight: zenburn
+    keep_md: no
+    mathjax: https://tools-static.wmflabs.org/cdnjs/ajax/libs/mathjax/2.6.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML
+    md_extensions: +raw_html +markdown_in_html_blocks +tex_math_dollars +fancy_lists +startnum +lists_without_preceding_blankline +footnotes +implicit_header_references
+    self_contained: yes # change this to no for the final draft
+    theme: flatly
+    toc: yes
+    toc_depth: 4
+    toc_float:
+      collapsed: no
+  pdf_document:
+    citation_package: natbib
+    fig_height: 6
+    fig_width: 10
+    keep_tex: no
+    latex_engine: xelatex
+    template: svm-latex-ms.tex
+bibliography: bibliography.bib
+csl: machine-learning.csl
+link-citations: yes
+nocite: |
+  @R-rmarkdown, @R-magrittr, @R-tidyr, @R-dplyr, @R-ggplot2, @R-wmf, @R-dt, @R-jsonlite
+fontsize: 11pt
+geometry: margin=1in
+header-includes:
+  - \usepackage{floatrow}
+  - \floatsetup[table]{capposition=bottom}
+---
+```{css, echo=FALSE}
+@import url('https://fonts.googleapis.com/css?family=Source+Code+Pro|Source+Sans+Pro|Source+Serif+Pro');
+body, p {
+  font-family: 'Source Serif Pro', serif;
+  font-size: 12pt;
+}
+pre, code {
+  font-family: 'Source Code Pro', monospace;
+}
+table, tr, td, h1, h2, h3, h4, h5, h6 {
+  font-family: 'Source Sans Pro', sans-serif;
+}
+p.abstract {
+  font-family: 'Source Sans Pro', sans-serif;
+  font-weight: bold;
+  font-size: 14pt !important;
+}
+```
+```{js, echo=FALSE}
+$(function() {
+  /* Lets the user click on the images to view them in full resolution. */
+  $("div.figure img").wrap(function() {
+    var link = $('<a/>');
+    link.attr('href', $(this).attr('src'));
+    link.attr('title', $(this).attr('alt'));
+    link.attr('target', '_blank');
+    return link;
+  });
+  $("p.abstract").text("Executive Summary");
+  $("div#wmf").wrap('<a href="https://wikimediafoundation.org/" />');
+});
+```
+```{r setup, include=FALSE}
+set.seed(0); options(digits = 3, scipen = 500)
+library(magrittr)
+library(knitr)
+library(kableExtra)
+if (!"printr" %in% installed.packages()[, "Package"]) {
+  install.packages("printr", type = "source", repos = c("Yihui Xie" = "http://yihui.name/xran", CRAN = "http://cran.rstudio.com"))
+} else {
+  loadNamespace("printr")
+}
+is_html <- function() {
+  if (length(opts_knit$get("rmarkdown.pandoc.to")) > 0) {
+    return(opts_knit$get("rmarkdown.pandoc.to") == "html")
+  } else {
+    return(FALSE)
+  }
+}
+if (is_html()) {
+  options(knitr.table.format = "html")
+} else {
+  options(knitr.table.format = "latex")
+}
+opts_chunk$set(
+  echo = is_html(), warning = FALSE, message = FALSE,
+  out.width = '\\textwidth', dev = 'png', fig.ext = 'png',
+  dpi = ifelse(is_html(), 150, 300)
+)
+path <- function(x) {
+  if (grepl("docs", getwd(), fixed = TRUE)) {
+    return(file.path("..", x))
+  } else {
+    return(x)
+  }
+}
+fable <- function(x, caption = NULL, ...) {
+  if (is_html()) {
+    return({
+      kable(x, caption = caption, booktabs = TRUE) %>%
+      kable_styling(bootstrap_options = c("striped", "hover"), ...)
+    })
+  } else {
+    return(kable(x, caption = caption, ...))
+  }
+}
+interpret_bf <- function(bf, interpreter = c('Kass and Raftery', 'Harold Jeffreys')) {
+  if (interpreter[1] == 'Kass and Raftery') {
+    bf_transformed <- 2 * log(bf)
+    if ( bf_transformed <= 2 ) {
+      return("not worth more than a bare mention")
+    } else if ( bf_transformed > 2 && bf_transformed <= 6 ) {
+      return("positive evidence against null hypothesis of independence")
+    } else if ( bf_transformed > 6 && bf_transformed <= 10 ) {
+      return("strong evidence against null hypothesis of independence")
+    } else { # bf_transformed > 10
+      return("very strong evidence against null hypothesis of independence")
+    }
+  } else { # interpreter == 'Harold Jeffreys'
+    bf_transformed <- log10(bf)
+    if ( bf_transformed <= 1/2 ) {
+      return("not worth more than a bare mention")
+    } else if ( bf_transformed > 1/2 && bf_transformed <= 1 ) {
+      return("substantial evidence againstnull hypothesis of independence")
+    } else if ( bf_transformed > 1 && bf_transformed <= 2 ) {
+      return("strong evidence against null hypothesis of independence")
+    } else { # bf_transformed > 2
+      return("decisive evidence against null hypothesis of independence")
+    }
+  }
+}
+```
+```{r captions, include=FALSE}
+# Manual figure & table captioning:
+library(captioner) # install.packages("captioner")
+table_caps <- captioner(prefix = "Table")
+figure_caps <- captioner(prefix = "Figure")
+code_caps <- captioner(prefix = "Snippet")
+# Custom caption formatting and printing:
+format_caption <- function(caps, name) {
+  return({
+    sub(caps(name, display = "cite"),
+      paste0(ifelse(is_html(), "**", "\\textbf{"), caps(name, display = "cite"), ifelse(is_html(), "**", "}")),
+      caps(name, display = "full"), fixed = TRUE) %>%
+    sub("  ", " ", ., fixed = TRUE)
+  })
+}
+print_caption <- function(formatted_caption) {
+  cat(paste0('<p class = "caption">', formatted_caption, '</p>', collapse = ''))
+}
+# TODO: captions
+```
+```{r links, echo=FALSE, results='asis'}
+if (is_html()) {
+  cat('<p style="text-align: center;"><a title="By Github project phacility/phabricator & w:de:User:Perhelion [Apache License 2.0 (http://www.apache.org/licenses/LICENSE-2.0)], via Wikimedia Commons" href="https://commons.wikimedia.org/wiki/File%3AFavicon-Phabricator-WM.png"><img width="16" alt="Favicon-Phabricator-WM" src="https://upload.wikimedia.org/wikipedia/commons/7/72/Favicon-Phabricator-WM.png"/></a> <a href="https://phabricator.wikimedia.org/T171215", title="T171215">Phabricator ticket</a> | <a title="By The Open Source Initiative [CC BY 2.5 (http://creativecommons.org/licenses/by/2.5)], via Wikimedia Commons" href="https://commons.wikimedia.org/wiki/File%3AOpen_Source_Initiative_keyhole.svg"><img width="16" alt="Open Source Initiative keyhole" src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Open_Source_Initiative_keyhole.svg/16px-Open_Source_Initiative_keyhole.svg.png"/></a> <a href="https://github.com/wikimedia-research/Discovery-Search-Test-InterleavedLTR">Open source analysis</a></p>')
+} else {
+  cat('\\let\\thefootnote\\relax\\footnote{Source code is available on GitHub (\\href{https://github.com/wikimedia-research/Discovery-Search-Test-InterleavedLTR}{wikimedia-research/Discovery-Search-Test-InterleavedLTR})}')
+}
+```
+
+# Introduction
+
+## Learning to rank
+
+...[machine-learned ranking](https://en.wikipedia.org/wiki/Learning_to_rank) (MLR)
+
+## Interleaved search results
+
+Chapelle et al. gave a great overview in [-@Interleaved:2012]...
+
+## Experimental groups
+
+- In the traditional A/B testing configuration, some users were randomly assigned to a control group while others were assigned to one of the two experimental groups.
+
+    - The control group had results ranked by the default [BM25 scoring algorithm](https://en.wikipedia.org/wiki/Okapi_BM25) which is currently in production on almost all languages due to successful A/B testing ([@BM25-1, @BM25-2]) except a few space-less languages.
+
+    - The "ltr-20" experimental group had results ranked by machine learning with a rescore window of 20. This means the model was trained against labeled data for the first 20 results that were displayed to users.
+
+    - The "ltr-1024" experimental group had results ranked by machine learning with a rescore window of 1024.  This means the model was trained against labeled data for the first 1024 results that were displayed to users.
+
+- With interleaved testing, there were no control/test groups; each group saw a set of results that were a mix from sets "A" and "B".
+
+    - The "ltr-i-20" group had BM25 scoring in "A" vs MLR (with a rescore window of 20) in "B",
+
+    - the "ltr-i-1024" group had traditional scoring in "A" vs MLR (with a rescore window of 1024) in "B", and
+
+    - the "ltr-i-20-1024" group had MLR with a rescore window of 20 in "A" vs MLR with a rescore window of 1024 in "B".
+
+# Methods
+
+This test's event logging (EL) was implemented in JavaScript according to the [TestSearchSatisfaction2 (TSS2)](https://meta.wikimedia.org/wiki/Schema:TestSearchSatisfaction2) schema, which is the one used by the Search team for its metrics on desktop, data was stored in a MySQL database, and analyzed and reported using R [@R-base].
+
+```{r pkgs, echo=FALSE}
+import::from(dplyr, group_by, ungroup, keep_where = filter, mutate, arrange, select, transmute, left_join, summarize, bind_rows, case_when, if_else, rename)
+library(ggplot2)
+```
+
+# Results
+
+## Traditional test
+
+### Zero results rate
+
+### Clickthrough rate
+
+### Page visit times
+
+## Interleaved test
+
+### Preference
+
+### Page visit times
+
+```{r bibliograpby, results='asis', echo=FALSE}
+if (is_html()) {
+  cat("# References\n")
+} else {
+  cat("\\nocite{*}\n")
+}
+```
