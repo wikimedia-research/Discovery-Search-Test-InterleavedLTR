@@ -229,6 +229,8 @@ library(ggplot2)
 
 ### Page visit times
 
+### Pagination navigation
+
 ## Interleaved test
 
 ### Preference

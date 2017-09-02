@@ -1,5 +1,5 @@
-if (!dir.exists("data")) {
-  dir.create("data", recursive = TRUE)
+if (!dir.exists(file.path("data", "daily"))) {
+  dir.create(file.path("data", "daily"), recursive = TRUE)
 }
 
 if (!grepl("^stat1", Sys.info()["nodename"])) {
@@ -14,9 +14,11 @@ if (!grepl("^stat1", Sys.info()["nodename"])) {
 
 library(glue)
 library(magrittr)
+source("funs.R")
 
 start_date <- as.Date("2017-08-07") + 1
-end_date <- as.Date("2017-08-31") - 1
+end_date <- as.Date("2017-08-30") - 1
+# start_date <- end_date - 1 # for dev
 
 query <- "SELECT
   timestamp AS ts,
@@ -44,31 +46,83 @@ WHERE
 results <- data.table::rbindlist(lapply(
   seq(start_date, end_date, "day"),
   function(date) {
-    date <- as.Date("2017-08-21") # TODO: remove
+
     message("Fetching events from ", format(date, "%d %B %Y"), "...")
     yyyymmdd <- format(date, "%Y%m%d")
     query <- glue(query)
     result <- wmf::mysql_read(query, "log", con)
     result$ts %<>% lubridate::ymd_hms()
     result$date <- as.Date(result$ts)
-    # De-duplicate events:
+
+    message("De-duplicating events")
     result <- result[order(result$session_id, result$event_id, result$ts), ]
     result <- result[!duplicated(result[, c("session_id", "event_id")]), ]
-    # Remove unnecessary check-ins:
+
+    message("Removing unnecessary check-ins")
     result <- result[order(result$session_id, result$page_id, result$article_id, result$checkin, na.last = FALSE), ]
     result <- result[!duplicated(result[, c("session_id", "page_id", "article_id", "event")], fromLast = TRUE), ]
     result <- result[order(result$session_id, result$ts), ]
-    # TODO: De-duplicate SERPs by linking with query hashes:
-    # TODO: Extract team draft data so we know which visited result is which:
-    # TODO: Remove orphan clicks (clicks without a SERP parent event):
+
+    message("Extracting offset data from SRP events")
+    result$offset <- extract_offset(result$event, result$extras)
+
+    message("Removing orphan clicks (clicks without a SRP parent event)")
+    orphans <- result %>%
+      dplyr::filter(event %in% c("searchResultPage", "click")) %>%
+      dplyr::arrange(session_id, page_id) %>%
+      dplyr::group_by(session_id, page_id) %>%
+      dplyr::summarize(has_srp = "searchResultPage" %in% event) %>%
+      dplyr::ungroup() %>%
+      dplyr::filter(!has_srp)
+    result %<>% dplyr::anti_join(orphans, by = c("session_id", "page_id"))
+
+    message("De-duplicating SRPs by linking with query hashes")
+    srps <- result[result$event == "searchResultPage", c("group_id", "session_id", "page_id", "query_hash")]
+    srps <- srps[order(srps$group_id, srps$session_id, srps$query_hash, srps$page_id), ]
+    srps %<>%
+      dplyr::group_by(group_id, session_id, query_hash) %>%
+      dplyr::mutate(search_id = page_id[1]) %>%
+      dplyr::ungroup()
+    result %<>% dplyr::left_join(srps, by = c("group_id", "session_id", "query_hash", "page_id"))
+
+    message("Performing additional data processing")
+    result$hits_returned[is.na(result$hits_returned) & result$event == "searchResultPage"] <- 0
+    result <- result[order(result$group_id, result$session_id, result$ts), ]
+    result$srp_counter <- count_srp(result$session_id, result$event, result$page_id)
+
+    message("Extracting team draft data so we know which visited result is which")
+    result <- data.table::data.table(result)
+    result[, team := process_session(.SD), by = "session_id", .SDcols = c("srp_counter", "extras", "article_id")]
+    result <- result[order(result$session_id, result$srp_counter, result$ts), ]
+    result[, extras := NULL, ]
+
+    message("Saving that day's data (", nrow(result), " rows)")
+    result <- result[, union(c("date", "group_id", "session_id", "ts"), names(result)), with = FALSE]
+    data.table::fwrite(result, file.path("data", "daily", paste0("events_", yyyymmdd, ".tsv")))
+
+    # Output:
     return(result)
   }
 ))
 
 wmf::mysql_close(con)
 
+# Full dataset:
+message("Writing full dataset (", nrow(results), " rows) out...")
+data.table::fwrite(results, file.path("data", paste0("full-events_", format(start_date, "%Y%m%d"), "-", format(end_date, "%Y%m%d"), ".csv")))
+
 # Interleaved testing:
-interleaved <- results[group %in% c("ltr-i-20", "ltr-i-1024", "ltr-i-20-1024") & event != "click", ]
+interleaved <- results[results$group %in% c("ltr-i-20", "ltr-i-1024", "ltr-i-20-1024") & results$event != "click", ]
+message("Writing interleaved subset (", nrow(interleaved), " rows) out...")
+data.table::fwrite(interleaved, file.path("data", paste0("interleaved_", format(start_date, "%Y%m%d"), "-", format(end_date, "%Y%m%d"), ".csv")))
+
 # Traditional A/B testing:
-page_visits <- results[group %in% c("control", "ltr-20", "ltr-1024") & event %in% c("visitPage", "checkin"), ]
-serp_clicks <- results[group %in% c("control", "ltr-20", "ltr-1024") & event %in% c("searchResultPage", "click"), ]
+page_visits <- results[results$group %in% c("control", "ltr-20", "ltr-1024") & results$event %in% c("visitPage", "checkin"), ]
+page_visits$team <- NULL
+message("Writing page visit subset (", nrow(page_visits), " rows) out...")
+data.table::fwrite(page_visits, file.path("data", paste0("page-visits_", format(start_date, "%Y%m%d"), "-", format(end_date, "%Y%m%d"), ".csv")))
+serp_clicks <- results[results$group %in% c("control", "ltr-20", "ltr-1024") & results$event %in% c("searchResultPage", "click"), ]
+serp_clicks$team <- NULL
+message("Writing SRP/clicks subset (", nrow(serp_clicks), " rows) out...")
+data.table::fwrite(serp_clicks, file.path("data", paste0("serp-clicks_", format(start_date, "%Y%m%d"), "-", format(end_date, "%Y%m%d"), ".csv")))
+message("Done!")
