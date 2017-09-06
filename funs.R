@@ -1,23 +1,29 @@
 library(Rcpp)
-cppFunction('NumericVector count_srp(CharacterVector sessions, CharacterVector events, CharacterVector pages) {
-  NumericVector srp(sessions.size());
-  String current_session = sessions[0];
-  String current_page = pages[0];
-  srp[0] = 1;
-  for (int i = 1; i < sessions.size(); i++) {
-    if (events[i] == "searchResultPage") {
-      if (sessions[i] == current_session) {
-        srp[i] = srp[i-1] + 1;
-      } else {
-        srp[i] = 1;
-        current_session = sessions[i];
-        current_page = pages[i];
-      }
+cppFunction('CharacterVector fill_in(CharacterVector ids) {
+  CharacterVector new_ids(ids.size());
+  String current_id = ids[0];
+  new_ids[0] = current_id;
+  for (int i = 1; i < ids.size(); i++) {
+    if (ids[i] != NA_STRING) {
+      current_id = ids[i];
+    }
+    new_ids[i] = current_id;
+  }
+  return new_ids;
+}')
+cppFunction('NumericVector cumunique(CharacterVector ids) {
+  NumericVector count(ids.size());
+  String current_id = ids[0];
+  count[0] = 1;
+  for (int i = 1; i < ids.size(); i++) {
+    if (ids[i] == current_id) {
+      count[i] = count[i-1];
     } else {
-      srp[i] = srp[i-1];
+      count[i] = count[i-1] + 1;
+      current_id = ids[i];
     }
   }
-  return srp;
+  return count;
 }')
 
 extract_offset <- function(action, extra_params) {

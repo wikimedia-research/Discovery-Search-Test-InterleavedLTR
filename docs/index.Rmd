@@ -1,4 +1,6 @@
 ---
+params:
+  env: dev # alt: prod
 title: "[WIP] First assessment of learning-to-rank"
 subtitle: "Testing machine-learned ranking of search results on English Wikipedia"
 date: "`r format(Sys.Date(), '%d %B %Y')`"
@@ -196,7 +198,7 @@ Chapelle et al. gave a great overview in [-@Interleaved:2012]...
 
 - In the traditional A/B testing configuration, some users were randomly assigned to a control group while others were assigned to one of the two experimental groups.
 
-    - The control group had results ranked by the default [BM25 scoring algorithm](https://en.wikipedia.org/wiki/Okapi_BM25) which is currently in production on almost all languages due to successful A/B testing ([@BM25-1, @BM25-2]) except a few space-less languages.
+    - The control group had results ranked by the default [BM25 scoring algorithm](https://en.wikipedia.org/wiki/Okapi_BM25) which is currently in production on almost all languages due to successful A/B testing [@BM25-1, -@BM25-2] except a few space-less languages.
 
     - The "ltr-20" experimental group had results ranked by machine learning with a rescore window of 20. This means the model was trained against labeled data for the first 20 results that were displayed to users.
 
@@ -221,17 +223,182 @@ library(ggplot2)
 
 # Results
 
+```{r data, echo=FALSE}
+date_range <- dplyr::case_when(
+  params$env == "dev" ~ "20170826-20170829",
+  params$env == "prod" ~ "20170807-20170829"
+)
+results <- readr::read_csv(glue::glue("../data/full-events_{date_range}.csv"))
+```
+
 ## Traditional test
+
+```{r data_ab, echo=FALSE}
+page_visits <- data.table::fread(
+  glue::glue("../data/page-visits_{date_range}.csv"),
+  key = c("group_id", "session_id", "search_id")
+)
+page_visits$date %<>% lubridate::ymd()
+page_visits$ts %<>% lubridate::ymd_hms()
+serp_clicks <- readr::read_csv(glue::glue("../data/serp-clicks_{date_range}.csv"))
+```
 
 ### Zero results rate
 
+```{r zrr}
+zrr <- serp_clicks %>%
+  group_by(group_id, session_id, search_id) %>%
+  summarize(max_hits = max(hits_returned, na.rm = TRUE)) %>%
+  mutate(some_results = max_hits > 0) %>%
+  group_by(group_id) %>%
+  summarize(searches = n(), zero = sum(!some_results)) %>%
+  { cbind(group = .$group_id, binom::binom.bayes(.$zero, .$searches)) }
+
+ggplot(zrr, aes(x = group, color = group, y = mean, ymin = lower, ymax = upper)) +
+  geom_pointrange() +
+  scale_color_brewer(palette = "Set1") +
+  scale_y_continuous(labels = scales::percent_format()) +
+  labs(
+    x = "Group", color = "Group", y = "Zero results rate",
+    title = "Proportion of searches yielding no results, by group",
+    subtitle = sprintf("95%% credible intervals* computed using data from %s to %s", min(serp_clicks$date), max(serp_clicks$date)),
+    caption = "* constructed using highest probability density (HPD)"
+  ) +
+  wmf::theme_min(base_family = "Source Sans Pro")
+```
+
 ### Clickthrough rate
+
+```{r}
+ctr <- serp_clicks %>%
+  group_by(group_id, session_id, search_id) %>%
+  summarize(
+    clickthrough = any(event == "click"),
+    max_hits = max(hits_returned, na.rm = TRUE)
+  ) %>%
+  ungroup %>%
+  keep_where(max_hits > 0) %>% # TODO: filter out searches with 0 results
+  group_by(group_id) %>%
+  summarize(searches = n(), clickthroughs = sum(clickthrough)) %>%
+  { cbind(group = .$group_id, binom::binom.bayes(.$clickthroughs, .$searches)) }
+
+ggplot(ctr, aes(x = group, color = group, y = mean, ymin = lower, ymax = upper)) +
+  geom_pointrange() +
+  scale_color_brewer(palette = "Set1") +
+  scale_y_continuous(labels = scales::percent_format()) +
+  labs(
+    x = "Group", color = "Group", y = "Clickthrough rate",
+    title = "Proportion of searches where the user clicked a result, by group",
+    subtitle = sprintf("95%% credible intervals* computed using data from %s to %s", min(serp_clicks$date), max(serp_clicks$date)),
+    caption = "* constructed using highest probability density (HPD)"
+  ) +
+  wmf::theme_min(base_family = "Source Sans Pro")
+```
+
+### Position of first click
+
+```{r first_click}
+first_click <- serp_clicks %>%
+  keep_where(event == "click") %>%
+  group_by(group_id, session_id, search_id) %>%
+  dplyr::top_n(1, ts) %>%
+  group_by(group_id, position) %>%
+  dplyr::tally() %>%
+  mutate(
+    position = dplyr::if_else(
+      position < 4,
+      purrr::map_chr(position + 1, toOrdinal::toOrdinal),
+      "5+"
+    ),
+    position = factor(position, c("1st", "2nd", "3rd", "4th", "5+"))
+  ) %>%
+  group_by(group_id, position) %>%
+  summarize(n = sum(n)) %>%
+  mutate(total = sum(n)) %>%
+  ungroup %>%
+  { cbind(., binom::binom.bayes(.$n, .$total)) }
+
+ggplot(first_click, aes(x = position, y = mean, fill = group_id)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.9), color = "white") +
+  geom_errorbar(aes(ymin = lower, ymax = upper), position = position_dodge(width = 0.9), width = 0.2) +
+  scale_fill_brewer(palette = "Set1") +
+  scale_y_continuous(labels = scales::percent_format()) +
+  labs(
+    x = "Position", y = "Proportion of searches with a clickthrough",
+    fill = "Group", title = "Position of first clicked result, by group",
+    subtitle = "Error bars indicate 95% credible interval (via HPD)"
+  ) +
+  wmf::theme_min(base_family = "Source Sans Pro")
+```
 
 ### Page visit times
 
+```{r visit_times_ab}
+library(survminer)
+library(survival)
+checkins <- c(0, 10, 20, 30, 40, 50, 60, 90, 120, 150, 180, 210, 240, 300, 360, 420)
+temp <- page_visits[, {
+  if (any(.SD$event == "checkin")) {
+    last_checkin <- max(.SD$checkin, na.rm = TRUE)
+    idx <- which(checkins > last_checkin)
+    if (length(idx) == 0) idx <- 16 # length(checkins) = 16
+    next_checkin <- checkins[min(idx)]
+    status <- ifelse(last_checkin == 420, 0, 3)
+    data.table::data.table(
+      `last check-in` = as.integer(last_checkin),
+      `next check-in` = as.integer(next_checkin),
+      status = as.integer(status)
+    )
+  }
+}, by = c("group_id", "session_id", "search_id")]
+surv <- survival::Surv(
+  time = temp$`last check-in`,
+  time2 = temp$`next check-in`,
+  event = temp$status,
+  type = "interval"
+)
+fit <- survival::survfit(surv ~ temp$group_id)
+km <- survminer::ggsurvplot(
+  fit, data = temp,
+  palette = "Set1", conf.int = FALSE,
+  ggtheme = wmf::theme_min(base_family = "Source Sans Pro"),
+  title = "How long users stay on clicked results, by group",
+  subtitle = "Kaplan–Meier curve of estimated survival probability",
+  xlab = "Time (s)", ylab = "Probability of visited page staying open this long"
+)
+km$plot <- km$plot + scale_y_continuous(labels = scales::percent_format())
+print(km)
+```
+
 ### Pagination navigation
 
+```{r explored}
+explored <- serp_clicks %>%
+  keep_where(event == "searchResultPage" & hits_returned > 0) %>%
+  group_by(group_id, session_id, search_id) %>%
+  summarize(explored = max(offset, na.rm = TRUE) > 0) %>%
+  group_by(group_id) %>%
+  summarize(searches = n(), explored = sum(explored)) %>%
+  { cbind(group = .$group_id, binom::binom.bayes(.$explored, .$searches)) }
+
+ggplot(explored, aes(x = group, color = group, y = mean, ymin = lower, ymax = upper)) +
+  geom_pointrange() +
+  scale_color_brewer(palette = "Set1") +
+  scale_y_continuous(labels = scales::percent_format()) +
+  labs(
+    x = "Group", color = "Group", y = "Proportion of non-empty searches",
+    title = "Proportion of searches where the user viewed additional results, by group",
+    subtitle = sprintf("95%% HPD intervals computed using data from %s to %s", min(serp_clicks$date), max(serp_clicks$date)),
+    caption = "By tracking the offset values, we are able to know when the user clicked on page 2 or 3 of search results."
+  ) +
+  wmf::theme_min(base_family = "Source Sans Pro")
+```
+
 ## Interleaved test
+
+```{r data_interleaved, echo=FALSE}
+interleaved <- readr::read_csv(glue::glue("../data/interleaved_{date_range}.csv"))
+```
 
 ### Preference
 

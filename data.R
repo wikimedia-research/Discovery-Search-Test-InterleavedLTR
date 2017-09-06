@@ -5,7 +5,8 @@ if (!dir.exists(file.path("data", "daily"))) {
 if (!grepl("^stat1", Sys.info()["nodename"])) {
   message("Creating an auto-closing SSH tunnel in the background...")
   # See https://gist.github.com/scy/6781836 for more info.
-  system("ssh -f -o ExitOnForwardFailure=yes stat1003.eqiad.wmnet -L 3307:analytics-store.eqiad.wmnet:3306 sleep 10")
+  system("ssh -f -o ExitOnForwardFailure=yes stat1006.eqiad.wmnet -L 3307:analytics-store.eqiad.wmnet:3306 sleep 10")
+  # Alternatively: `ssh -N stat6 -L 3307:analytics-store.eqiad.wmnet:3306`
   library(RMySQL)
   con <- dbConnect(MySQL(), host = "127.0.0.1", group = "client", dbname = "log", port = 3307)
 } else {
@@ -18,7 +19,7 @@ source("funs.R")
 
 start_date <- as.Date("2017-08-07") + 1
 end_date <- as.Date("2017-08-30") - 1
-# start_date <- end_date - 1 # for dev
+# start_date <- end_date - 3 # for dev
 
 query <- "SELECT
   timestamp AS ts,
@@ -82,17 +83,25 @@ results <- data.table::rbindlist(lapply(
     srps %<>%
       dplyr::group_by(group_id, session_id, query_hash) %>%
       dplyr::mutate(search_id = page_id[1]) %>%
-      dplyr::ungroup()
-    result %<>% dplyr::left_join(srps, by = c("group_id", "session_id", "query_hash", "page_id"))
+      dplyr::ungroup() %>%
+      dplyr::select(-query_hash)
+    result %<>%
+      dplyr::left_join(srps, by = c("group_id", "session_id", "page_id")) %>%
+      dplyr::arrange(group_id, session_id, ts)
+    result$search_id <- fill_in(result$search_id)
 
     message("Performing additional data processing")
     result$hits_returned[is.na(result$hits_returned) & result$event == "searchResultPage"] <- 0
-    result <- result[order(result$group_id, result$session_id, result$ts), ]
-    result$srp_counter <- count_srp(result$session_id, result$event, result$page_id)
+    result %<>%
+      dplyr::group_by(group_id, session_id) %>%
+      dplyr::arrange(ts) %>%
+      dplyr::mutate(srp_counter = cumunique(search_id)) %>%
+      dplyr::ungroup() %>%
+      dplyr::arrange(group_id, session_id, ts)
 
     message("Extracting team draft data so we know which visited result is which")
     result <- data.table::data.table(result)
-    result[, team := process_session(.SD), by = "session_id", .SDcols = c("srp_counter", "extras", "article_id")]
+    result[, team := process_session(.SD), by = c("group_id", "session_id"), .SDcols = c("srp_counter", "extras", "article_id")]
     result <- result[order(result$session_id, result$srp_counter, result$ts), ]
     result[, extras := NULL, ]
 
@@ -113,6 +122,7 @@ data.table::fwrite(results, file.path("data", paste0("full-events_", format(star
 
 # Interleaved testing:
 interleaved <- results[results$group %in% c("ltr-i-20", "ltr-i-1024", "ltr-i-20-1024") & results$event != "click", ]
+interleaved$checkin <- NULL
 message("Writing interleaved subset (", nrow(interleaved), " rows) out...")
 data.table::fwrite(interleaved, file.path("data", paste0("interleaved_", format(start_date, "%Y%m%d"), "-", format(end_date, "%Y%m%d"), ".csv")))
 
