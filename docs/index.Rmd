@@ -16,7 +16,7 @@ author:
 - affiliation: "Product Manager, Wikimedia Foundation"
   name: "Deb Tankersley"
 abstract: >
-  SUMMARY
+  English Wikipedia searchers who received results from machine learned-ranking (MLR) were significantly more likely to engage with those results -- 36% (rescore window of 20) and 37% (rescore window of 1024) clickthrough rates -- than the control group (31%) who received results ranked by BM25. Users with MLR results were also more likely to click on the first search result first. When we compared how long users stayed on those visited pages, the results were inconclusive. Users who saw MLR results with the rescore window of 1024 were more likely to view additional pages of search results, but not significantly. When the users were presented with an interleaved mix of results, they exhibited some preference for MLR results over the default BM25 results. Specifically, users appeared to have a preference for the MLR results with a rescore window of 1024 more than a rescore window of 20, and they stayed on those visited results longer.
 output:
   html_document:
     includes:
@@ -188,29 +188,25 @@ if (is_html()) {
 
 ## Learning to rank
 
-...[machine-learned ranking](https://en.wikipedia.org/wiki/Learning_to_rank) (MLR)
+Previously, our search engine used term frequency—inverse document frequency ([tf—idf](https://en.wikipedia.org/wiki/Tf%E2%80%93idf)) for ranking documents (e.g. articles and other pages on English Wikipedia). After successful A/B testing [@BM25-1; @BM25-2], we switched to [BM25 scoring algorithm](https://en.wikipedia.org/wiki/Okapi_BM25) which is currently in production on almost all languages, except a few space-less languages. Our current efforts are focused on information retrieval using [machine-learned ranking](https://en.wikipedia.org/wiki/Learning_to_rank) (MLR). In MLR, a model is trained to predict a document's relevance from various document-level and [query-level](https://en.wikipedia.org/wiki/Query_level_feature) features which represent the document.
+
+*MjoLniR* -- our Python and Spark-based library for handling the backend data processing for Machine Learned Ranking at Wikimedia -- uses a [Deep Belief Network](https://en.wikipedia.org/wiki/Deep_belief_network) via [XGBoost](https://en.wikipedia.org/wiki/Xgboost) and is [available as open source](https://github.com/wikimedia/search-MjoLniR).
 
 ## Interleaved search results
 
-Chapelle et al. gave a great overview in [-@Interleaved:2012]...
+The way we have been assessing changes to search has so far relied on A/B testing -- randomized experiments -- wherein the control group receives results using the latest configuration and the test group (or groups) receives results using the experimental configuration. Another way to evaluate the user-perceived relevance of search results from the experimental configuration relies on a technique called *interleaving*. In it, each user is their own baseline -- we perform two searches behind the scenes and then interleave them together into a single set of results using the team draft algorithm described by Chapelle et al. [-@Interleaved:2012]. By keeping track of which results belong to which ranking function when the user clicks on them, we can estimate a preference for one ranker over the other.
 
 ## Experimental groups
 
-- In the traditional A/B testing configuration, some users were randomly assigned to a control group while others were assigned to one of the two experimental groups.
+In total there were 6 groups that users could be randomly assigned to. Three of the groups were using in a traditional A/B test setting -- some users were randomly assigned to a control group while others were assigned to one of the two experimental groups.
 
-    - The control group had results ranked by the default [BM25 scoring algorithm](https://en.wikipedia.org/wiki/Okapi_BM25) which is currently in production on almost all languages due to successful A/B testing [@BM25-1, -@BM25-2] except a few space-less languages.
+- The control group had results ranked by BM25.
 
-    - The "ltr-20" experimental group had results ranked by machine learning with a rescore window of 20. This means the model was trained against labeled data for the first 20 results that were displayed to users.
+- The "MLR (20)" experimental group had results ranked by machine learning with a rescore window of 20. This means the model was trained against labeled data for the first 20 results that were displayed to users.
 
-    - The "ltr-1024" experimental group had results ranked by machine learning with a rescore window of 1024.  This means the model was trained against labeled data for the first 1024 results that were displayed to users.
+- The "MLR (1024)" experimental group had results ranked by machine learning with a rescore window of 1024. This means the model was trained against labeled data for the first 1024 results that were displayed to users.
 
-- With interleaved testing, there were no control/test groups; each group saw a set of results that were a mix from sets "A" and "B".
-
-    - The "ltr-i-20" group had BM25 scoring in "A" vs MLR (with a rescore window of 20) in "B",
-
-    - the "ltr-i-1024" group had traditional scoring in "A" vs MLR (with a rescore window of 1024) in "B", and
-
-    - the "ltr-i-20-1024" group had MLR with a rescore window of 20 in "A" vs MLR with a rescore window of 1024 in "B".
+The remaining three groups were tested via interleaving the results. Two of the groups saw results that were a mix of BM25-ranked results and machine learning-ranked results, and one group saw results that were a mix of results from machine learned-rankers but with different rescoring windows.
 
 # Methods
 
@@ -224,23 +220,27 @@ library(ggplot2)
 # Results
 
 ```{r data, echo=FALSE}
-date_range <- dplyr::case_when(
-  params$env == "dev" ~ "20170826-20170829",
-  params$env == "prod" ~ "20170807-20170829"
+date_range <- "20170808-20170829"
+results <- readr::read_rds(glue::glue("../data/full-events_{date_range}.rds"))
+results$group_id %<>% factor(
+  c("control", "ltr-20", "ltr-1024"),
+  c("BM25 (Control)", "MLR @ 20", "MLR @ 1024")
 )
-results <- readr::read_csv(glue::glue("../data/full-events_{date_range}.csv"))
 ```
 
 ## Traditional test
 
 ```{r data_ab, echo=FALSE}
-page_visits <- data.table::fread(
-  glue::glue("../data/page-visits_{date_range}.csv"),
-  key = c("group_id", "session_id", "search_id")
+page_visits <- readr::read_rds(glue::glue("../data/page-visits_{date_range}.rds"))
+page_visits$group_id %<>% factor(
+  c("control", "ltr-20", "ltr-1024"),
+  c("BM25 (Control)", "MLR @ 20", "MLR @ 1024")
 )
-page_visits$date %<>% lubridate::ymd()
-page_visits$ts %<>% lubridate::ymd_hms()
-serp_clicks <- readr::read_csv(glue::glue("../data/serp-clicks_{date_range}.csv"))
+serp_clicks <- readr::read_rds(glue::glue("../data/serp-clicks_{date_range}.rds"))
+serp_clicks$group_id %<>% factor(
+  c("control", "ltr-20", "ltr-1024"),
+  c("BM25 (Control)", "MLR @ 20", "MLR @ 1024")
+)
 ```
 
 ### Zero results rate
@@ -255,9 +255,13 @@ zrr <- serp_clicks %>%
   { cbind(group = .$group_id, binom::binom.bayes(.$zero, .$searches)) }
 
 ggplot(zrr, aes(x = group, color = group, y = mean, ymin = lower, ymax = upper)) +
-  geom_pointrange() +
+  geom_linerange() +
+  geom_label(aes(label = sprintf("%.2f%%", 100 * mean)), show.legend = FALSE) +
   scale_color_brewer(palette = "Set1") +
-  scale_y_continuous(labels = scales::percent_format()) +
+  scale_y_continuous(
+    labels = scales::percent_format(), limits = c(0.08, 0.1),
+    breaks = seq(0.08, 0.1, 0.01), minor_breaks = seq(0.08, 0.1, 0.005)
+  ) +
   labs(
     x = "Group", color = "Group", y = "Zero results rate",
     title = "Proportion of searches yielding no results, by group",
@@ -269,7 +273,7 @@ ggplot(zrr, aes(x = group, color = group, y = mean, ymin = lower, ymax = upper))
 
 ### Clickthrough rate
 
-```{r}
+```{r ctr}
 ctr <- serp_clicks %>%
   group_by(group_id, session_id, search_id) %>%
   summarize(
@@ -283,7 +287,8 @@ ctr <- serp_clicks %>%
   { cbind(group = .$group_id, binom::binom.bayes(.$clickthroughs, .$searches)) }
 
 ggplot(ctr, aes(x = group, color = group, y = mean, ymin = lower, ymax = upper)) +
-  geom_pointrange() +
+  geom_linerange() +
+  geom_label(aes(label = sprintf("%.2f%%", 100 * mean)), show.legend = FALSE) +
   scale_color_brewer(palette = "Set1") +
   scale_y_continuous(labels = scales::percent_format()) +
   labs(
@@ -333,7 +338,7 @@ ggplot(first_click, aes(x = position, y = mean, fill = group_id)) +
 
 ### Page visit times
 
-```{r visit_times_ab}
+```{r surv_ab, cache=TRUE}
 library(survminer)
 library(survival)
 checkins <- c(0, 10, 20, 30, 40, 50, 60, 90, 120, 150, 180, 210, 240, 300, 360, 420)
@@ -382,7 +387,8 @@ explored <- serp_clicks %>%
   { cbind(group = .$group_id, binom::binom.bayes(.$explored, .$searches)) }
 
 ggplot(explored, aes(x = group, color = group, y = mean, ymin = lower, ymax = upper)) +
-  geom_pointrange() +
+  geom_linerange() +
+  geom_label(aes(label = sprintf("%.2f%%", 100 * mean)), show.legend = FALSE) +
   scale_color_brewer(palette = "Set1") +
   scale_y_continuous(labels = scales::percent_format()) +
   labs(
@@ -396,13 +402,191 @@ ggplot(explored, aes(x = group, color = group, y = mean, ymin = lower, ymax = up
 
 ## Interleaved test
 
-```{r data_interleaved, echo=FALSE}
-interleaved <- readr::read_csv(glue::glue("../data/interleaved_{date_range}.csv"))
+```{r data_il, echo=FALSE}
+interleaved <- readr::read_rds(glue::glue("../data/interleaved_{date_range}.rds"))
+interleaved$group_id %<>% factor(
+  c("ltr-i-20", "ltr-i-1024", "ltr-i-20-1024"),
+  c("[A] BM25 vs [B] MLR (20)", "[A] BM25 vs [B] MLR (1024)", "[A] MLR (20) vs [B] MLR (1024)")
+)
 ```
 
 ### Preference
 
+```{r pref, cache=TRUE}
+events <- interleaved[
+  !is.na(team) & team != "" & event == "visitPage",
+  c("date", "group_id", "session_id", "search_id", "team"),
+  with = TRUE
+]
+events <- events[order(events$date, events$group_id, events$session_id, events$search_id, events$team), ]
+pref_daily <- events[, j = list(
+  "Sampling sessions" = wmf::interleaved_preference(paste(.SD$session_id), .SD$team),
+  "Sampling searches" = wmf::interleaved_preference(paste(.SD$session_id, .SD$search_id), .SD$team)
+), by = c("date", "group_id")] %>%
+  tidyr::gather(method, observed, -c(date, group_id))
+pref_overall <- events[, j = list(
+  "Sampling sessions" = wmf::interleaved_preference(paste(.SD$session_id), .SD$team),
+  "Sampling searches" = wmf::interleaved_preference(paste(.SD$session_id, .SD$search_id), .SD$team)
+), by = c("group_id")] %>%
+  tidyr::gather(method, observed, -c(group_id))
+```
+
+```{r bootstrap_sampling, cache=TRUE}
+data.table::setDTthreads(4) # not sure if this actually even helps
+m <- ifelse(params$env == "dev", 100, 10000)
+prefs_by_session <- events[, {
+  preferences <- vapply(1:m, function(i) {
+    set.seed(i)
+    n <- data.table::uniqueN(.SD$session_id)
+    resampled <- split(.SD, .SD$session_id)[sample.int(n, n, replace = TRUE)]
+    names(resampled) <- 1:n
+    resampled %>%
+      dplyr::bind_rows(.id = "sample") %>%
+      group_by(session_id) %>%
+      mutate(sample_id = paste(session_id, as.numeric(factor(sample)), sep = "-")) %>%
+      ungroup %>%
+      { wmf::interleaved_preference(.$sample_id, .$team) }
+  }, 0.0)
+  data.frame(sample = 1:m, preference = preferences, method = "Sampling sessions", stringsAsFactors = FALSE)
+}, by = c("date", "group_id")]
+prefs_by_search <- events[, {
+  preferences <- vapply(1:m, function(i) {
+    set.seed(i)
+    n <- data.table::uniqueN(.SD[, c("session_id", "search_id"), with = TRUE])
+    resampled <- split(.SD, paste0(.SD$session_id, .SD$search_id))[sample.int(n, n, replace = TRUE)]
+    names(resampled) <- 1:n
+    resampled %>%
+      dplyr::bind_rows(.id = "sample") %>%
+      group_by(session_id, search_id) %>%
+      mutate(sample_id = paste(session_id, search_id, as.numeric(factor(sample)), sep = "-")) %>%
+      ungroup %>%
+      { wmf::interleaved_preference(.$sample_id, .$team) }
+  }, 0.0)
+  data.frame(sample = 1:m, preference = preferences, method = "Sampling searches", stringsAsFactors = FALSE)
+}, by = c("date", "group_id")]
+prefs <- rbind(prefs_by_session, prefs_by_search)
+daily <- prefs %>%
+  group_by(date, group_id, method) %>%
+  summarize(
+    lower = quantile(preference, 0.025, na.rm = TRUE),
+    upper = quantile(preference, 0.975, na.rm = TRUE)
+  ) %>%
+  ungroup %>%
+  left_join(pref_daily, by = c("date", "group_id", "method")) %>%
+  mutate(preferred = dplyr::if_else(observed > 0, "A", "B")) %>%
+  group_by(group_id, method, preferred) %>%
+  arrange(date) %>%
+  mutate(counter = cumsum(!is.na(date))) %>%
+  ungroup
+overall <- prefs %>%
+  group_by(group_id, method, date) %>%
+  summarize(
+    lower95 = quantile(preference, 0.025, na.rm = TRUE),
+    lower80 = quantile(preference, 0.1, na.rm = TRUE),
+    upper95 = quantile(preference, 0.975, na.rm = TRUE),
+    upper80 = quantile(preference, 0.9, na.rm = TRUE),
+  ) %>%
+  summarize(
+    lower95 = median(lower95, na.rm = TRUE),
+    upper95 = median(upper95, na.rm = TRUE),
+    lower80 = median(lower80, na.rm = TRUE),
+    upper80 = median(upper80, na.rm = TRUE)
+  ) %>%
+  ungroup %>%
+  left_join(pref_overall, by = c("group_id", "method"))
+```
+
+```{r bootstrap_viz_daily, fig.width = 16, fig.height = 8}
+ggplot(keep_where(daily, !is.na(observed)), aes(x = date, y = observed)) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.25) +
+  geom_line() +
+  geom_segment(
+    aes(xend = date, yend = ifelse(preferred == "A", 0.275, -0.275), color = preferred),
+    linetype = "dotted"
+  ) +
+  geom_point(aes(color = preferred)) +
+  geom_text(
+    aes(y = ifelse(preferred == "A", 0.3, -0.3), label = counter, color = preferred),
+    show.legend = FALSE, fontface = "bold"
+  ) +
+  scale_color_brewer(palette = "Set1") +
+  facet_grid(method ~ group_id) +
+  labs(
+    x = "Date", y = "B ← Preference → A",
+    title = "Preference for results from two rankers, daily by group",
+    subtitle = "Showing counts of how many times users preferred one ranking over the other",
+    caption = "95% confidence intervals were bootstrapped using two different sampling approaches"
+  ) +
+  wmf::theme_facet(base_family = "Source Sans Pro")
+```
+```{r bootstrap_viz_overall}
+ggplot(
+  mutate(overall, method = sub("\\s", "\n", method)),
+  aes(x = method, y = observed)
+) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  geom_linerange(aes(ymin = lower95, ymax = upper95), size = 0.5) +
+  geom_linerange(aes(ymin = lower80, ymax = upper80), size = 1.5) +
+  geom_label(aes(label = sprintf("%.4f", observed))) +
+  facet_wrap(~ group_id) +
+  labs(
+    x = "Bootstrap approach", y = "B ← Preference → A",
+    title = "Preference for results from two rankers, by group",
+    caption = "80% (thick) and 95% (thin) confidence intervals were bootstrapped using two different sampling approaches"
+  ) +
+  wmf::theme_facet()
+```
+
 ### Page visit times
+
+```{r surv_il, cache=TRUE}
+temp <- interleaved[!is.na(team) & team != "", {
+  if (any(.SD$event == "checkin")) {
+    last_checkin <- max(.SD$checkin, na.rm = TRUE)
+    idx <- which(checkins > last_checkin)
+    if (length(idx) == 0) idx <- 16 # length(checkins) = 16
+    next_checkin <- checkins[min(idx)]
+    status <- ifelse(last_checkin == 420, 0, 3)
+    data.table::data.table(
+      `last check-in` = as.integer(last_checkin),
+      `next check-in` = as.integer(next_checkin),
+      status = as.integer(status),
+      team = .SD$team[1]
+    )
+  }
+}, by = c("group" = "group_id", "session_id", "search_id")] %>%
+  as.data.frame
+temp$group %<>% factor(
+  c("[A] BM25 vs [B] MLR (20)", "[A] BM25 vs [B] MLR (1024)", "[A] MLR (20) vs [B] MLR (1024)"),
+  c("[Group 1] BM25 vs LTR (20)", "[Group 2] BM25 vs LTR (1024)", "[Group 3] LTR (20) vs LTR (1024)")
+)
+surv <- survival::Surv(
+  time = temp$`last check-in`,
+  time2 = temp$`next check-in`,
+  event = temp$status,
+  type = "interval"
+)
+fit <- survival::survfit(surv ~ temp$group + temp$team)
+km <- survminer::ggsurvplot(
+  fit, data = temp, palette = "Dark2",
+  title = "How long users stay on each team's results",
+  subtitle = "Kaplan–Meier curve of estimated survival probability",
+  xlab = "Time (s)", ylab = "Probability of visited page staying open this long"
+)
+km$plot <- km$plot +
+  scale_y_continuous(labels = scales::percent_format()) +
+  scale_x_continuous(labels = function(x) {
+    mins <- floor(x / 60); secs <- x %% 60
+    labs <- sprintf("%.0fm %.0fs", mins, secs)
+    labs[mins == 0] <- sprintf("%.0fs", secs[mins == 0])
+    labs[secs == 0] <- sprintf("%.0fm", mins[secs == 0])
+    return(labs)
+  }, breaks = c(0, 0.5, 1:7) * 60) +
+  facet_wrap(~ group) +
+  wmf::theme_facet()
+print(km)
+```
 
 ```{r bibliograpby, results='asis', echo=FALSE}
 if (is_html()) {

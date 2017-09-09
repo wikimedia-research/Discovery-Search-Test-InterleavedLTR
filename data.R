@@ -19,7 +19,7 @@ source("funs.R")
 
 start_date <- as.Date("2017-08-07") + 1
 end_date <- as.Date("2017-08-30") - 1
-# start_date <- end_date - 3 # for dev
+# start_date <- end_date - 2 # for dev
 
 query <- "SELECT
   timestamp AS ts,
@@ -119,20 +119,24 @@ wmf::mysql_close(con)
 # Full dataset:
 message("Writing full dataset (", nrow(results), " rows) out...")
 data.table::fwrite(results, file.path("data", paste0("full-events_", format(start_date, "%Y%m%d"), "-", format(end_date, "%Y%m%d"), ".csv")))
+readr::write_rds(results, file.path("data", paste0("full-events_", format(start_date, "%Y%m%d"), "-", format(end_date, "%Y%m%d"), ".rds")), compress = "gz")
 
 # Interleaved testing:
 interleaved <- results[results$group %in% c("ltr-i-20", "ltr-i-1024", "ltr-i-20-1024") & results$event != "click", ]
-interleaved$checkin <- NULL
+interleaved$position <- NULL
 message("Writing interleaved subset (", nrow(interleaved), " rows) out...")
 data.table::fwrite(interleaved, file.path("data", paste0("interleaved_", format(start_date, "%Y%m%d"), "-", format(end_date, "%Y%m%d"), ".csv")))
+readr::write_rds(interleaved, file.path("data", paste0("interleaved_", format(start_date, "%Y%m%d"), "-", format(end_date, "%Y%m%d"), ".rds")), compress = "gz")
 
 # Traditional A/B testing:
 page_visits <- results[results$group %in% c("control", "ltr-20", "ltr-1024") & results$event %in% c("visitPage", "checkin"), ]
 page_visits$team <- NULL
 message("Writing page visit subset (", nrow(page_visits), " rows) out...")
 data.table::fwrite(page_visits, file.path("data", paste0("page-visits_", format(start_date, "%Y%m%d"), "-", format(end_date, "%Y%m%d"), ".csv")))
+readr::write_rds(page_visits, file.path("data", paste0("page-visits_", format(start_date, "%Y%m%d"), "-", format(end_date, "%Y%m%d"), ".rds")), compress = "gz")
 serp_clicks <- results[results$group %in% c("control", "ltr-20", "ltr-1024") & results$event %in% c("searchResultPage", "click"), ]
 serp_clicks$team <- NULL
 message("Writing SRP/clicks subset (", nrow(serp_clicks), " rows) out...")
 data.table::fwrite(serp_clicks, file.path("data", paste0("serp-clicks_", format(start_date, "%Y%m%d"), "-", format(end_date, "%Y%m%d"), ".csv")))
+readr::write_rds(serp_clicks, file.path("data", paste0("serp-clicks_", format(start_date, "%Y%m%d"), "-", format(end_date, "%Y%m%d"), ".rds")), compress = "gz")
 message("Done!")
