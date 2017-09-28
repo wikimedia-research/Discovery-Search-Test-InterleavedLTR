@@ -1,7 +1,7 @@
 ---
 params:
-  env: dev # dev or prod
-title: "[WIP] First assessment of learning-to-rank"
+  env: prod # dev or prod
+title: "First assessment of learning-to-rank"
 subtitle: "Testing machine-learned ranking of search results on English Wikipedia"
 date: "`r format(Sys.Date(), '%d %B %Y')`"
 author:
@@ -16,7 +16,7 @@ author:
 - affiliation: "Product Manager, Wikimedia Foundation"
   name: "Deb Tankersley"
 abstract: >
-  English Wikipedia searchers who received results from machine learned-ranking (MLR) were significantly more likely to engage with those results -- 36% (rescore window of 20) and 37% (rescore window of 1024) clickthrough rates -- than the control group (31%) who received results ranked by BM25. Users with MLR results were also more likely to click on the first search result first. When we compared how long users stayed on those visited pages, the results were inconclusive. Users who saw MLR results with the rescore window of 1024 were more likely to view additional pages of search results, but not significantly. When the users were presented with an interleaved mix of results, they exhibited some preference for MLR results over the default BM25 results. Specifically, users appeared to have a preference for the MLR results with a rescore window of 1024 more than a rescore window of 20, and they stayed on those visited results longer.
+  The Search Platform Team has been working on improving search on Wikimedia projects with machine learning. Machine learned-ranking (MLR) enables us to rank relevance of pages using a model trained on implicit and explicit judgements. In the first test of the learning-to-rank (LTR) project, we evaluated the performance of a click-based model on users searching English Wikipedia. We found that users were slightly more likely to engage with MLR-provided results than with BM25 results (assessed via the clickthrough rate and a preference statistic). We also found that users with machine learning-ranked results were statistically significantly more likely to click on the first search result first than users with BM25-ranked results, which indicates that we are onto something. The next step for us is to evaluate the model's performance on Wikipedia in other languages.
 output:
   html_document:
     includes:
@@ -36,23 +36,11 @@ output:
     toc_depth: 2
     toc_float:
       collapsed: no
-  pdf_document:
-    citation_package: natbib
-    fig_height: 6
-    fig_width: 10
-    keep_tex: no
-    latex_engine: xelatex
-    template: svm-latex-ms.tex
 bibliography: bibliography.bib
 csl: machine-learning.csl
 link-citations: yes
 nocite: |
   @R-rmarkdown, @R-magrittr, @R-tidyr, @R-dplyr, @R-ggplot2, @R-dt, @R-jsonlite
-fontsize: 11pt
-geometry: margin=1in
-header-includes:
-  - \usepackage{floatrow}
-  - \floatsetup[table]{capposition=bottom}
 ---
 ```{css, echo=FALSE}
 @import url('https://fonts.googleapis.com/css?family=Source+Code+Pro|Source+Sans+Pro|Source+Serif+Pro');
@@ -87,7 +75,8 @@ $(function() {
 });
 ```
 ```{r setup, include=FALSE}
-set.seed(0); options(digits = 3, scipen = 500)
+options(digits = 3, scipen = 500)
+m <- ifelse(params$env == "dev", 10, 1000)
 library(magrittr)
 library(knitr)
 library(kableExtra)
@@ -175,11 +164,10 @@ print_caption <- function(formatted_caption) {
   cat(paste0('<p class = "caption">', formatted_caption, '</p>', collapse = ''))
 }
 figure_caps(name = "zrr", caption = "The zero results rate is not significantly different for the searches using MLR than the control group which used BM25 ranking.")
-figure_caps(name = "ctr", caption = "Both experimental groups had signifiantly higher engagement with their MLR-provided search results than the control group had with their BM25-provided search results.")
+figure_caps(name = "ctr", caption = "MLR@20 experimental group had slightly higher engagement with their MLR-provided search results than the control group had with their BM25-provided search results, but not by much.")
 figure_caps(name = "first_click", caption = "While users in general tend to click on the first search result first, users in the groups with MLR-provided results were slightly more likely than users in the control group with BM25-provided results.")
 figure_caps(name = "surv_ab", caption = "Users were slightly more likely to stay on MLR-provided pages longer than users who clicked on BM25-provided results.")
-figure_caps(name = "explored", caption = "Users rarely clicked past the first page of search results and primarily saw the first 15-20 results. There were no significant differences in the proportions of sessions (which yielded search results) between the three groups.")
-figure_caps(name = "sps", caption = "There were no significant differences in the number of searches performed per session between the three groups.")
+figure_caps(name = "explored", caption = "Users rarely clicked past the first page of search results and primarily saw the top 20 (or top 15) results. There were no significant differences in the proportions of sessions (which yielded search results) between the three groups.")
 figure_caps(name = "bootstrap_viz_daily", caption = "While the preferences for ranking functions were not significantly higher or lower (the 95% bootstrapped confidence intervals cover 0 -- no preference) on a daily basis, there were more days when the users showed a slight preference for MLR results with the 1024-rescore window.")
 figure_caps(name = "bootstrap_viz_overall", caption = "Overall, there were not statistically significant differences in preferences (the 95% bootstrapped confidence intervals cover 0 -- no preference), although the results suggest that users showed a slight preference for MLR results with the 1024-rescore window.")
 figure_caps(name = "surv_il", caption = "Compared to the BM25-provided results, pages that were provided by MLR had a higher probability of being open longer -- indicating that users were staying longer on those clicked results. Between the two sets of MLR-provided results, pages that were provided by the 1024-rescore window MLR had a higher probability of staying open.")
@@ -204,25 +192,50 @@ Previously, our search engine used term frequency—inverse document frequency (
 
 ## Interleaved search results
 
-The way we have been assessing changes to search has so far relied on A/B testing wherein the control group receives results using the latest configuration and the test group (or groups) receives results using the experimental configuration. Another way to evaluate the user-perceived relevance of search results from the experimental configuration relies on a technique called *interleaving*. In it, each user is their own baseline -- we perform two searches behind the scenes and then interleave them together into a single set of results using the team draft algorithm described by Chapelle et al. [-@Interleaved:2012]. By keeping track of which results belong to which ranking function when the user clicks on them, we can estimate a preference for one ranker over the other.
+The way we have been assessing changes to search has so far relied on A/B testing wherein the control group receives results using the latest configuration and the test group (or groups) receives results using the experimental configuration. Another way to evaluate the user-perceived relevance of search results from the experimental configuration relies on a technique called *interleaving*. In it, each user is their own baseline -- we perform two searches behind the scenes and then interleave them together into a single set of results using the team draft algorithm described by Chapelle et al. [-@Interleaved:2012]:
+
+1. **Input**: result sets $A$ and $B$.
+2. **Initialize**: an empty interleaved result sets $I$ and drafts $T_A, T_B$ for keeping track of which results belong to which team.
+3. For each round of picking:
+    a. Randomly decide whether we first pick from $A$ or from $B$.
+    b. Without loss of generality, if $A$ is randomly chosen to go first, grab top result $a \in A$, append it to $I$ and $T_A$: $I \gets a, T_A \gets a$.
+    c. Take the top result $b \in B$ such that $b \neq a$ and append it to $I$ after $a$ and to $T_B$: $I \gets b, T_B \gets b$.
+    d. Update $A = A \setminus \{a, b\}$ and $B \setminus \{a, b\}$ so the two results that were just appended to $I$ are not considered again.
+    e. Stop when $|I| = \text{maximum per page}$, so only the first page contains interleaved results.
+4. **Output**: interleaved results $I$ and team drafts $T_A, T_B$.
+
+By keeping track of which results belong to which ranking function when the user clicks on them, we can estimate a preference for one ranker over the other.
 
 ## Experimental groups
 
 In total there were 6 groups that users could be randomly assigned to. Three of the groups were using in a traditional A/B test setting -- some users were randomly assigned to a control group while others were assigned to one of the two experimental groups.
 
 - The control group had results ranked by BM25.
-
 - The "MLR @ 20" experimental group had results ranked by machine learning with a rescore window of 20. This means that each [shard](https://www.elastic.co/guide/en/elasticsearch/reference/current/_basic_concepts.html#getting-started-shards-and-replicas) (of which English Wikipedia has 7) applies the model to the top 20 results. Those 140 results are then collected and sorted to produce the top 20 shown to the user.
+- The "MLR @ 1024" experimental group had results ranked by machine learning with a rescore window of 1024. This means that each of the seven shards applies the model to the top 1024 results. Those 7168 results are then collected and sorted to produce the final top 20 (or top 15) shown to the users, since almost no users look at results beyond the first page.
 
-- The "MLR @ 1024" experimental group had results ranked by machine learning with a rescore window of 1024. This means that each of the seven shards applies the model to the top 1024 results. Those 7168 results are then collected and sorted to produce the top 1024 shown to the user.
-
-The remaining three groups were tested via interleaving the results. Two of the groups saw results that were a mix of BM25-ranked results and machine learning-ranked results, and one group saw results that were a mix of results from machine learned-rankers but with different rescoring windows.
+The remaining three groups were tested via interleaving the results. Two of the groups saw results that were a mix of BM25-ranked results and one of the flavors of machine learning-ranked results. The third "interleaved results" group saw results from both rescore windows (20 and 1024) so we could assess whether users had a preference for one over the other.
 
 # Methods
 
 We ran the experiment on the desktop version of English Wikipedia (as opposed to, say, the mobile web or the mobile app versions). Visitors who searched, had JavaScript enabled, and did *not* have "[Do Not Track](https://en.wikipedia.org/wiki/Do_Not_Track)" enabled (a setting we respect) had a 1 in 500 (0.2%) chance of being selected for anonymous tracking. Of those who were selected, 75% were selected for the experiment and the remaining 25% were used for Search Platform team's analytics. The users who were entered into the test were then randomly assigned to one of the six groups described above.
 
-This test's event logging (EL) was implemented in JavaScript according to the [TestSearchSatisfaction2 (TSS2)](https://meta.wikimedia.org/wiki/Schema:TestSearchSatisfaction2) schema, which is the one used by the Search team for its metrics on desktop, data was stored in a MySQL database, and analyzed and reported using the software "R" [@R-base]. A development version of the internal package "wmf" [@R-wmf] was used for the analysis of data from the users with interleaved search results using the preference statistic described by Chapelle et al. [-@Interleaved:2012].
+This test's event logging (EL) was implemented in JavaScript according to the [TestSearchSatisfaction2 (TSS2)](https://meta.wikimedia.org/wiki/Schema:TestSearchSatisfaction2) schema, which is the one used by the Search team for its metrics on desktop, data was stored in a MySQL database, and analyzed and reported using the software "R" [@R-base]. A development version of the internal package "wmf" [@R-wmf] was used for the analysis of data from the users with interleaved search results using the preference statistic $\Delta_{AB}$ described by Chapelle et al. [-@Interleaved:2012]:
+
+$$
+\Delta_{AB} = \frac{\text{wins}_A + \frac{1}{2} \text{ties}}{\text{wins}_A + \text{wins}_B + \text{ties}} - 0.5,
+$$
+
+where wins are calculated by counting clicks on the results from teams "A" and "B". A positive value of $\Delta_{AB}$ indicates that $A \succ B$, a negative value indicates that $B \succ A$. We performed two types of calculations: per-session and per-search. In **per-session**, "A" has won if there are more clicks on team "A" results than team "B" results and $\text{wins}_A$ is incremented by one for each such session. In **per-search**, "A" has won if there are more clicks on team "A" results in each search, thus any one session can contribute multiple points to the overall $\text{wins}_A$.
+
+In order to obtain confidence intervals for the preference statistic, we utilized [bootstrapping](https://en.wikipedia.org/wiki/Bootstrapping_(statistics)) with `r m` iterations. Since we calculated the preference on per-session and per-search levels, we correspondingly employed two resampling approaches: sampling sessions and sampling searches.
+
+1. For bootstrap iteration $i = 1, \ldots, m$ ($m = `r m`$):
+    a. Sample unique IDs with replacement.
+        - If sampling _sessions_, the unique IDs are session IDs, which maintains per-session correlations between searches.
+        - If sampling _searches_, the unique IDs are a combinaton of session IDs and search IDs.
+    b. Calculate $\Delta_{AB}^{(i)}$ from new data.
+2. The confidence intervals (CIs) are calculated by finding percentiles of the distribution of bootstrapped preferences $\{\Delta_{AB}^{(1)}, \ldots, \Delta_{AB}^{(m)}\}$ -- e.g. the 2.5th and 97.5th percentiles for a 95% CI.
 
 ```{r pkgs, echo=FALSE}
 import::from(dplyr, group_by, ungroup, keep_where = filter, mutate, arrange, select, transmute, left_join, summarize, bind_rows, case_when, if_else, rename)
@@ -234,7 +247,7 @@ checkins <- c(0, 10, 20, 30, 40, 50, 60, 90, 120, 150, 180, 210, 240, 300, 360, 
 
 # Results
 
-```{r data, echo=FALSE}
+```{r data, echo=FALSE, results='hide'}
 date_range <- "20170808-20170829"
 results <- data.table::as.data.table(
   readr::read_rds(glue::glue("../data/full-events_{date_range}.rds")),
@@ -244,6 +257,11 @@ results$group_id %<>% factor(
   c("control", "ltr-20", "ltr-1024", "ltr-i-20", "ltr-i-1024", "ltr-i-20-1024"),
   c("BM25 (Control)", "MLR @ 20", "MLR @ 1024", "[A] BM25 vs [B] MLR (20)", "[A] BM25 vs [B] MLR (1024)", "[A] MLR (20) vs [B] MLR (1024)")
 )
+invisible(results[, valid := length(unique(search_id)) <= 50, by = c("date", "session_id")])
+power_sessions <- results[valid == FALSE, list(
+  sessions = data.table::uniqueN(.SD[, c("date", "session_id")]),
+  searches = data.table::uniqueN(.SD[, c("date", "session_id", "search_id")])
+), by = c("group_id")]
 counts <- results[, list(
   sessions = data.table::uniqueN(.SD[, c("date", "session_id")]),
   searches = data.table::uniqueN(.SD[, c("date", "session_id", "search_id")])
@@ -258,32 +276,35 @@ n_searches <- counts[, c("group_id", "searches")] %>%
   set_names(counts$group_id)
 ```
 
-In the traditional A/B test setting, we recorded `r prettyNum(n_sessions["BM25 (Control)"], big.mark = ",")` sessions -- which performed `r prettyNum(n_searches["BM25 (Control)"], big.mark = ",")` searches -- for the control group (who received BM25-ranked results). The MLR@20 experimental group had `r prettyNum(n_sessions["MLR @ 20"], big.mark = ",")` sessions which performed `r prettyNum(n_searches["MLR @ 20"], big.mark = ",")` searches, and the MLR@1024 experimental group had `r prettyNum(n_sessions["MLR @ 1024"], big.mark = ",")` sessions which performed `r prettyNum(n_searches["MLR @ 1024"], big.mark = ",")` searches. There were a total of `r prettyNum(sum(n_sessions[c("[A] BM25 vs [B] MLR (20)", "[A] BM25 vs [B] MLR (1024)", "[A] MLR (20) vs [B] MLR (1024)")]), big.mark = ",")` sessions in the interleaved test setting which performed a total of `r prettyNum(sum(n_searches[c("[A] BM25 vs [B] MLR (20)", "[A] BM25 vs [B] MLR (1024)", "[A] MLR (20) vs [B] MLR (1024)")]), big.mark = ",")` searches.
+In the traditional A/B test setting, we recorded `r prettyNum(n_sessions["BM25 (Control)"], big.mark = ",")` sessions -- which performed `r prettyNum(n_searches["BM25 (Control)"], big.mark = ",")` searches -- for the control group (who received BM25-ranked results). The MLR@20 experimental group had `r prettyNum(n_sessions["MLR @ 20"], big.mark = ",")` sessions which performed `r prettyNum(n_searches["MLR @ 20"], big.mark = ",")` searches, and the MLR@1024 experimental group had `r prettyNum(n_sessions["MLR @ 1024"], big.mark = ",")` sessions which performed `r prettyNum(n_searches["MLR @ 1024"], big.mark = ",")` searches. There were a total of `r prettyNum(sum(n_sessions[c("[A] BM25 vs [B] MLR (20)", "[A] BM25 vs [B] MLR (1024)", "[A] MLR (20) vs [B] MLR (1024)")]), big.mark = ",")` sessions in the interleaved test setting which performed a total of `r prettyNum(sum(n_searches[c("[A] BM25 vs [B] MLR (20)", "[A] BM25 vs [B] MLR (1024)", "[A] MLR (20) vs [B] MLR (1024)")]), big.mark = ",")` searches. However, we had to apply a filter that excluded sessions which performed more than 50 searches. Specifically, `r prettyNum(sum(power_sessions$sessions), big.mark = ",")` sessions (which performed a total of `r prettyNum(sum(power_sessions$searches), big.mark = ",")` searches) across all 6 groups were excluded from analysis.
 
 ## Traditional test
 
-```{r data_ab, echo=FALSE}
+```{r data_ab, echo=FALSE, results='hide'}
 page_visits <- readr::read_rds(glue::glue("../data/page-visits_{date_range}.rds"))
 page_visits$group_id %<>% factor(
   c("control", "ltr-20", "ltr-1024"),
   c("BM25 (Control)", "MLR @ 20", "MLR @ 1024")
 )
+invisible(page_visits[, valid := length(unique(search_id)) <= 50, by = c("date", "session_id")])
 serp_clicks <- readr::read_rds(glue::glue("../data/serp-clicks_{date_range}.rds"))
 serp_clicks$group_id %<>% factor(
   c("control", "ltr-20", "ltr-1024"),
   c("BM25 (Control)", "MLR @ 20", "MLR @ 1024")
 )
+invisible(serp_clicks[, valid := length(unique(search_id)) <= 50, by = c("date", "session_id")])
 ```
 
 ### Zero results rate
 
-While we were not targeting zero results rate (ZRR -- the proportion of searches yielding no results) as our LTR work is more concerned with relevance of the search results rather than the volume of returned results ([*precision* vs *recall*](https://en.wikipedia.org/wiki/Precision_and_recall)), we do include ZRR as a health metric. Indeed, Figure `r figure_caps("zrr", display = "num")` shows that roughly the same proportions of searches yielded zero results across the three groups.
+While we were not targeting zero results rate (ZRR -- the proportion of searches yielding no results) as our LTR work is more concerned with relevance of the search results rather than the volume of returned results ([*precision* vs *recall*](https://en.wikipedia.org/wiki/Precision_and_recall)), we do include ZRR as a health metric. Indeed, Figure `r figure_caps("zrr", display = "num")` shows that roughly the same proportions of searches yielded zero results across the three groups. Any difference in ZRR is purely noise, since there’s no difference in retrieval for the different groups, only differences in ranking.
 
 ```{r zrr_capt, echo=FALSE}
 zrr_cap <- format_caption(figure_caps, "zrr")
 ```
 ```{r zrr, fig.cap=zrr_cap}
-zrr <- serp_clicks[, list(some_results = max(hits_returned, na.rm = TRUE) > 0),
+set.seed(0)
+zrr <- serp_clicks[valid == TRUE, list(some_results = max(hits_returned, na.rm = TRUE) > 0),
                    by = c("group_id", "session_id", "search_id")] %>%
   .[, list(searches = .N, zero = sum(!some_results)), by = "group_id"] %>%
   { cbind(group = .$group_id, binom::binom.bayes(.$zero, .$searches)) }
@@ -307,13 +328,14 @@ ggplot(zrr, aes(x = group, color = group, y = mean, ymin = lower, ymax = upper))
 
 ### Clickthrough rate
 
-Currently, our primary assessment of performance with respect to relevance is users' engagement with their search results as measured by their clickthrough rate -- the proportion of searches where the user received some search results and clicked on at least one of them. Figure `r figure_caps("ctr", display = "num")` shows that users who received MLR results were significantly and substantially more likely to engage with those results than users who received results retrieved via BM25.
+Currently, our primary assessment of performance with respect to relevance is users' engagement with their search results as measured by their clickthrough rate -- the proportion of searches where the user received some search results and clicked on at least one of them. Figure `r figure_caps("ctr", display = "num")` shows that users who received MLR results were slightly more likely to engage with those results than users who received results retrieved via BM25.
 
 ```{r ctr_capt, echo=FALSE}
 ctr_cap <- format_caption(figure_caps, "ctr")
 ```
 ```{r ctr, fig.cap=ctr_cap}
-ctr <- serp_clicks[, list(clickthrough = any(event == "click"), max_hits = max(hits_returned, na.rm = TRUE)),
+set.seed(0)
+ctr <- serp_clicks[valid == TRUE, list(clickthrough = any(event == "click"), max_hits = max(hits_returned, na.rm = TRUE)),
                    by = c("group_id", "session_id", "search_id")] %>%
   # filter out searches with 0 results
   .[max_hits > 0, list(searches = .N, clickthroughs = sum(clickthrough)), by = "group_id"] %>%
@@ -335,15 +357,16 @@ ggplot(ctr, aes(x = group, color = group, y = mean, ymin = lower, ymax = upper))
 
 ### Position of first click
 
-Another way to assess the relevance quality of search results is to look at which results users clicked first. Specifically, one could assume that the first result a user clicks on is the one they judged to be the most relevant and that the position of the first clicked result gives an insight into how well the ranker performs. Figure `r figure_caps("first_click", display = "num")` shows that that a slightly higher proportion of users in the MLR groups clicked on the first search result first than the users in the control group.
+Another way to assess the relevance quality of search results is to look at which results users clicked first. Specifically, one could assume that the first result a user clicks on is the one they judged to be the most relevant and that the position of the first clicked result gives an insight into how well the ranker performs.
 
 ```{r first_click_cap, echo=FALSE}
 first_click_cap <- format_caption(figure_caps, "first_click")
 ```
 ```{r first_click, fig.cap=first_click_cap}
+set.seed(0)
 first_click <- serp_clicks %>%
   as.data.frame %>%
-  keep_where(event == "click") %>%
+  keep_where(event == "click", valid == TRUE) %>%
   group_by(group_id, session_id, search_id) %>%
   dplyr::top_n(1, ts) %>%
   group_by(group_id, position) %>%
@@ -380,6 +403,12 @@ ggplot(first_click, aes(x = position, y = mean, fill = group_id)) +
   wmf::theme_min(14, ifelse(is_html(), "Source Sans Pro", "Gill Sans"))
 ```
 
+Figure `r figure_caps("first_click", display = "num")` shows that that a slightly higher proportion of users in the MLR groups clicked on the first search result first than the users in the control group. Focusing on first position specifically, we found that:
+
+- The difference between control group and MLR@20 group `r ifelse(first_click$upper[first_click$group_id == "BM25 (Control)" & first_click$position == "1st"] < first_click$lower[first_click$group_id == "MLR @ 20" & first_click$position == "1st"], "_was_", "was _not_")` statistically significant.
+- The difference between control group and MLR@1024 group `r ifelse(first_click$upper[first_click$group_id == "BM25 (Control)" & first_click$position == "1st"] < first_click$lower[first_click$group_id == "MLR @ 1024" & first_click$position == "1st"], "_was_", "was _not_")` statistically significant.
+- The difference between MLR@20 and MLR@1024 groups `r ifelse(first_click$upper[first_click$group_id == "MLR @ 20" & first_click$position == "1st"] < first_click$lower[first_click$group_id == "MLR @ 1024" & first_click$position == "1st"], "_was_", "was _not_")` statistically significant.
+
 ### Page visit times
 
 When a user is enrolled into search analytics tracking, we use [survival analysis](https://en.wikipedia.org/wiki/Survival_analysis) to estimate how long they keep clicked search results open. While the intent of the user making the search can vary and the time spent on visited pages varies with that -- for example, we cannot expect the user who searched for "barack obama birthdate" to stay on Barack Obama's Wikipedia article for more than a few seconds after seeing the birthdate in the infobox -- this is still a window into potential differences in users' perception of the results. Specifically, Figure `r figure_caps("surv_ab", display = "num")` shows that users who navigated to articles from search with MLR results were slightly more likely to stay on those articles longer, perhaps because they were more relevant.
@@ -388,7 +417,7 @@ When a user is enrolled into search analytics tracking, we use [survival analysi
 surv_ab_cap <- format_caption(figure_caps, "surv_ab")
 ```
 ```{r surv_ab, cache=TRUE, fig.cap=surv_ab_cap}
-temp <- page_visits[, {
+temp <- page_visits[valid == TRUE, {
   if (any(.SD$event == "checkin")) {
     last_checkin <- max(.SD$checkin, na.rm = TRUE)
     idx <- which(checkins > last_checkin)
@@ -423,15 +452,16 @@ print(km)
 
 ### Pagination navigation
 
-Figure `r figure_caps("explored", display = "num")` shows that users did not explore the various pages of search results presented to them and mostly stayed on the first page containing the top 15-20 results. It also shows that there were no significant differences between the groups.
+Figure `r figure_caps("explored", display = "num")` shows that users did not explore the various pages of search results presented to them and mostly stayed on the first page containing the top 20 (or top 15) results. It also shows that there were no significant differences between the groups.
 
 ```{r explored_cap, echo=FALSE}
 explored_cap <- format_caption(figure_caps, "explored")
 ```
 ```{r explored, fig.cap=explored_cap}
+set.seed(0)
 explored <- serp_clicks %>%
   as.data.frame %>%
-  keep_where(event == "searchResultPage" & hits_returned > 0) %>%
+  keep_where(event == "searchResultPage" & hits_returned > 0, valid == TRUE) %>%
   group_by(group_id, session_id, search_id) %>%
   summarize(explored = max(offset, na.rm = TRUE) > 0) %>%
   group_by(group_id) %>%
@@ -444,7 +474,7 @@ ggplot(explored, aes(x = group, color = group, y = mean, ymin = lower, ymax = up
   scale_color_brewer(palette = "Set1") +
   scale_y_continuous(labels = scales::percent_format()) +
   labs(
-    x = "Group", color = "Group", y = "Proportion of non-empty searches",
+    x = "Group", color = "Group", y = "Proportion of searches that yielded some results",
     title = "Proportion of searches where the user viewed additional results, by group",
     subtitle = sprintf("95%% HPD intervals computed using data from %s to %s", min(serp_clicks$date), max(serp_clicks$date)),
     caption = "By tracking the offset values, we are able to know when the user clicked on page 2 or 3 of search results."
@@ -452,70 +482,24 @@ ggplot(explored, aes(x = group, color = group, y = mean, ymin = lower, ymax = up
   wmf::theme_min(14, ifelse(is_html(), "Source Sans Pro", "Gill Sans"))
 ```
 
-### Searches per session
-
-Another way to assess performance is to consider the number of searches 
-Figure `r figure_caps("sps", display = "num")` shows that there were no differences in the number of unique searches performed by users in the different groups.
-
-```{r sps_cap, echo=FALSE}
-sps_cap <- format_caption(figure_caps, "sps")
-```
-```{r sps, fig.cap=sps_cap}
-searches <- serp_clicks[, list(searches = data.table::uniqueN(search_id)), by = c("group_id", "date", "session_id")] %>%
-  .[, list(sessions = .N), by = c("group_id", "searches")] %>%
-  as.data.frame %>%
-  mutate(searches = ifelse(searches >= 5, "5+", searches)) %>%
-  group_by(group_id, searches) %>%
-  summarize(sessions = sum(sessions)) %>%
-  mutate(total = sum(sessions)) %>%
-  ungroup %>% {
-    cbind(
-      group_id = .$group_id, searches = .$searches,
-      binom::binom.bayes(.$sessions, .$total)
-    )
-  } %>%
-  mutate(searches = factor(searches, c(1:4, "5+")))
-ggplot(searches, aes(x = searches, y = mean, fill = group_id)) +
-  geom_bar(
-    stat = "identity", color = "white",
-    position = position_dodge(width = 0.9)
-  ) +
-  geom_errorbar(
-    aes(ymin = lower, ymax = upper),
-    position = position_dodge(width = 0.9),
-    width = 0.4
-  ) +
-  geom_text(
-    aes(label = sprintf("%.1f%%", 100 * mean), y = upper + 0.01),
-    position = position_dodge(width = 0.9),
-    hjust = "left"
-  ) +
-  scale_fill_brewer("Group", palette = "Set1") +
-  scale_y_continuous(labels = scales::percent_format()) +
-  coord_flip() +
-  labs(
-    x = "Searches per session", y = "Proportion of sessions",
-    title = "Number of unique searches made per session, by group",
-    subtitle = "Error bars indicate 95% credible interval (via HPD)"
-  ) +
-  wmf::theme_min(14, ifelse(is_html(), "Source Sans Pro", "Gill Sans"))
-```
-
 ## Interleaved test
 
-```{r data_il, echo=FALSE}
+```{r data_il, echo=FALSE, results='hide'}
 interleaved <- data.table::as.data.table(as.data.frame(readr::read_rds(glue::glue("../data/interleaved_{date_range}.rds"))))
 interleaved$group_id %<>% factor(
   c("ltr-i-20", "ltr-i-1024", "ltr-i-20-1024"),
   c("[A] BM25 vs [B] MLR (20)", "[A] BM25 vs [B] MLR (1024)", "[A] MLR (20) vs [B] MLR (1024)")
 )
+invisible(interleaved[, valid := length(unique(search_id)) <= 20, by = c("date", "session_id")])
 ```
 
 ### Preference
 
+In the interleaved setting where users saw a mix of search results from two different ranking functions, we observed a slight but statistically insignificant preference for results from MLR@20 and specifically from MLR@1024. The daily preferences in Figure `r figure_caps("bootstrap_viz_daily", display = "num")` show a count of days in which users preferred results from team "A" versus results from team "B". For example, there were 6-8 days in which users preferred results from BM25 and 13-15 days in which users preferred results from MLR with a rescore window of 1024. Looking at the overall preferences in Figure `r figure_caps("bootstrap_viz_overall", display = "num")`, users showed a slightly higher preferences for MLR@1024 results over BM25 results than for MLR@20 results over BM25 results, but when we presented them with MLR results from both rescore windows, there was practically no preference.
+
 ```{r pref, cache=TRUE}
 events <- interleaved[
-  !is.na(team) & team != "" & event == "visitPage",
+  !is.na(team) & team != "" & event == "visitPage" & valid == TRUE,
   c("date", "group_id", "session_id", "search_id", "team"),
   with = TRUE
 ]
@@ -534,7 +518,7 @@ pref_overall <- events[, j = list(
 
 ```{r bootstrap_sampling, cache=TRUE}
 data.table::setDTthreads(4) # not sure if this actually even helps
-m <- ifelse(params$env == "dev", 100, 10000)
+set.seed(42)
 prefs_by_session <- events[, {
   preferences <- vapply(1:m, function(i) {
     set.seed(i)
@@ -643,15 +627,15 @@ ggplot(
   wmf::theme_facet(14, ifelse(is_html(), "Source Sans Pro", "Gill Sans"))
 ```
 
-In Figures `r figure_caps("bootstrap_viz_daily", display = "num")` and `r figure_caps("bootstrap_viz_overall", display = "num")`...
-
 ### Page visit times
+
+As mentioned before, observing how long users stay on visited pages is a way to gauge the relevance of the search results in the context of trying to find a specific article to read. Figure `r figure_caps("surv_il", display = "num")` shows that compared to the BM25-provided results, pages that were provided by MLR had a higher probability of being open longer -- indicating that users were staying longer on those clicked results. Between the two sets of MLR-provided results, pages that were provided by the 1024-rescore window MLR had a higher probability of staying open longer.
 
 ```{r surv_il_cap, echo=FALSE}
 surv_il_cap <- format_caption(figure_caps, "surv_il")
 ```
 ```{r surv_il, cache=TRUE, fig.cap=surv_il_cap}
-temp <- interleaved[!is.na(team) & team != "", {
+temp <- interleaved[!is.na(team) & team != "" & valid == TRUE, {
   if (any(.SD$event == "checkin")) {
     last_checkin <- max(.SD$checkin, na.rm = TRUE)
     idx <- which(checkins > last_checkin)
@@ -669,7 +653,7 @@ temp <- interleaved[!is.na(team) & team != "", {
   as.data.frame
 temp$group %<>% factor(
   c("[A] BM25 vs [B] MLR (20)", "[A] BM25 vs [B] MLR (1024)", "[A] MLR (20) vs [B] MLR (1024)"),
-  c("[Group 1] BM25 vs LTR (20)", "[Group 2] BM25 vs LTR (1024)", "[Group 3] LTR (20) vs LTR (1024)")
+  c("1: BM25 vs LTR (20)", "2: BM25 vs LTR (1024)", "3: LTR (20) vs LTR (1024)")
 )
 surv <- survival::Surv(
   time = temp$`last check-in`,
@@ -692,17 +676,23 @@ km$plot <- km$plot +
     labs[mins == 0] <- sprintf("%.0fs", secs[mins == 0])
     labs[secs == 0] <- sprintf("%.0fm", mins[secs == 0])
     return(labs)
-  }, breaks = c(0, 0.5, 1:7) * 60) +
+  }, breaks = c(0.5, 1:7) * 60) +
   facet_wrap(~ group) +
   wmf::theme_facet(14, ifelse(is_html(), "Source Sans Pro", "Gill Sans"))
 print(km)
 ```
 
-In Figure `r figure_caps("surv_il", display = "num")`...
+# Conclusion
 
-# Conclusion & Discussion
+While we did not see overwhelming evidence that LTR is better than the status quo, we saw results that indicate a slight improvement. MLR@20's clikthrough rate was slightly higher (although not statistically significantly higher), users preferred LTR over BM25 in the interleaved results more often than the other way, and overall there is a slight preference for LTR results over BM25 results. We did observe that MLR@20 users were statistically significantly more likely to click on the first search result first than users in the control group were to click on theirs.
 
-Even MLR@1024 group had the highest clickthrough rate, the increase from MLR@20 to MLR@1024 is not especially large. We may want to use the rescore window of 20 because we saw such a tremendous improvement over the BM25 results and it is less computationally intensive than using the rescore window of 1024.
+## Discussion
+
+Regarding the rescore window, 1024 isn't incredibly expensive compared to 20. It costs more, but it doesn't seem prohibitive. In the load tests with rescore windows up to 4096, it was all fine. The benefit we would get from a larger rescore window is the ability to pull things up from further down in the retrieval query phase. The theory is that there are plenty of good things down there, and if we allow the LTR to reach down that far it will find them. This gives new information to the DBN, which hopefully builds a feedback loop where the LTR brings in some new result types from further down that it thinks are good, users evaluate them, and then the DBN learns new labels based on those to inform the next model we build.
+
+## Acknowledgement
+
+We would like to thank our colleague Chelsy Xie for her review of this report.
 
 ```{r bibliograpby, results='asis', echo=FALSE}
 if (is_html()) {
