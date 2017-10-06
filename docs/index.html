@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+
+<meta charset="utf-8" />
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="pandoc" />
+
+
+
+<meta name="date" content="2017-10-06" />
+
+<title>First assessment of learning-to-rank</title>
+
+<script src="index_files/jquery-1.11.3/jquery.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="index_files/bootstrap-3.3.5/css/flatly.min.css" rel="stylesheet" />
+<script src="index_files/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="index_files/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="index_files/bootstrap-3.3.5/shim/respond.min.js"></script>
+<script src="index_files/jqueryui-1.11.4/jquery-ui.min.js"></script>
+<link href="index_files/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="index_files/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="index_files/navigation-1.1/tabsets.js"></script>
+<script src="index_files/navigation-1.1/codefolding.js"></script>
+
+
+<style type="text/css">code{white-space: pre;}</style>
+<style type="text/css">
+div.sourceCode { overflow-x: auto; }
+table.sourceCode, tr.sourceCode, td.lineNumbers, td.sourceCode {
+  margin: 0; padding: 0; vertical-align: baseline; border: none; }
+table.sourceCode { width: 100%; line-height: 100%; background-color: #303030; color: #cccccc; }
+td.lineNumbers { text-align: right; padding-right: 4px; padding-left: 4px; }
+td.sourceCode { padding-left: 5px; }
+pre, code { color: #cccccc; background-color: #303030; }
+code > span.kw { color: #f0dfaf; } /* Keyword */
+code > span.dt { color: #dfdfbf; } /* DataType */
+code > span.dv { color: #dcdccc; } /* DecVal */
+code > span.bn { color: #dca3a3; } /* BaseN */
+code > span.fl { color: #c0bed1; } /* Float */
+code > span.ch { color: #dca3a3; } /* Char */
+code > span.st { color: #cc9393; } /* String */
+code > span.co { color: #7f9f7f; } /* Comment */
+code > span.ot { color: #efef8f; } /* Other */
+code > span.al { color: #ffcfaf; } /* Alert */
+code > span.fu { color: #efef8f; } /* Function */
+code > span.er { color: #c3bf9f; } /* Error */
+code > span.wa { color: #7f9f7f; font-weight: bold; } /* Warning */
+code > span.cn { color: #dca3a3; font-weight: bold; } /* Constant */
+code > span.sc { color: #dca3a3; } /* SpecialChar */
+code > span.vs { color: #cc9393; } /* VerbatimString */
+code > span.ss { color: #cc9393; } /* SpecialString */
+code > span.im { } /* Import */
+code > span.va { } /* Variable */
+code > span.cf { color: #f0dfaf; } /* ControlFlow */
+code > span.op { color: #f0efd0; } /* Operator */
+code > span.bu { } /* BuiltIn */
+code > span.ex { } /* Extension */
+code > span.pp { color: #ffcfaf; font-weight: bold; } /* Preprocessor */
+code > span.at { } /* Attribute */
+code > span.do { color: #7f9f7f; } /* Documentation */
+code > span.an { color: #7f9f7f; font-weight: bold; } /* Annotation */
+code > span.cv { color: #7f9f7f; font-weight: bold; } /* CommentVar */
+code > span.in { color: #7f9f7f; font-weight: bold; } /* Information */
+div.sourceCode {
+  overflow-x: visible;
+}
+</style>
+<style type="text/css">
+  pre:not([class]) {
+    background-color: white;
+  }
+</style>
+
+<style type="text/css">
+  p.abstract{
+    text-align: center;
+    font-weight: bold;
+  }
+  div.abstract{
+    margin: auto;
+    width: 90%;
+  }
+</style>
+
+<style type="text/css">
+h1 {
+  font-size: 34px;
+}
+h1.title {
+  font-size: 38px;
+}
+h2 {
+  font-size: 30px;
+}
+h3 {
+  font-size: 24px;
+}
+h4 {
+  font-size: 18px;
+}
+h5 {
+  font-size: 16px;
+}
+h6 {
+  font-size: 12px;
+}
+.table th:not([align]) {
+  text-align: left;
+}
+</style>
+
+<link rel="stylesheet" href="style.css" type="text/css" />
+
+</head>
+
+<body>
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+code {
+  color: inherit;
+  background-color: rgba(0, 0, 0, 0.04);
+}
+img {
+  max-width:100%;
+  height: auto;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+</style>
+
+
+
+<div class="container-fluid main-container">
+
+<!-- tabsets -->
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+</script>
+
+<!-- code folding -->
+<style type="text/css">
+.code-folding-btn { margin-bottom: 4px; }
+</style>
+<script>
+$(document).ready(function () {
+  window.initializeCodeFolding("hide" === "show");
+});
+</script>
+
+
+
+
+<script>
+$(document).ready(function ()  {
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_').toLowerCase();
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = false;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<style type="text/css">
+
+#TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+  padding-left: 25px;
+  text-indent: 0;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+.tocify-subheader {
+  display: inline;
+}
+.tocify-subheader .tocify-item {
+  font-size: 0.95em;
+}
+
+</style>
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row-fluid">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div class="fluid-row" id="header">
+
+<div class="btn-group pull-right">
+<button type="button" class="btn btn-default btn-xs dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><span>Code</span> <span class="caret"></span></button>
+<ul class="dropdown-menu" style="min-width: 50px;">
+<li><a id="rmd-show-all-code" href="#">Show All Code</a></li>
+<li><a id="rmd-hide-all-code" href="#">Hide All Code</a></li>
+</ul>
+</div>
+
+
+
+<h1 class="title toc-ignore">First assessment of learning-to-rank</h1>
+<h3 class="subtitle"><em>Testing machine-learned ranking of search results on English Wikipedia</em></h3>
+<h4 class="author"><em>Erik Bernhardson</em></h4>
+<address class="author_afil">
+Senior Software Engineer, Wikimedia Foundation<br><h4 class="author"><em>David Causse</em></h4>
+<address class="author_afil">
+Software Engineer, Wikimedia Foundation<br><h4 class="author"><em>Trey Jones</em></h4>
+<address class="author_afil">
+Senior Software Engineer, Wikimedia Foundation<br><h4 class="author"><em>Mikhail Popov</em></h4>
+<address class="author_afil">
+Data Analyst, Wikimedia Foundation<br><h4 class="author"><em>Deb Tankersley</em></h4>
+<address class="author_afil">
+Product Manager, Wikimedia Foundation<br><h4 class="date"><em>06 October 2017</em></h4>
+<div class="abstract">
+<p class="abstract">Abstract</p>
+<p>The Search Platform Team has been working on improving search on Wikimedia projects with machine learning. Machine learned-ranking (MLR) enables us to rank relevance of pages using a model trained on implicit and explicit judgements. In the first test of the learning-to-rank (LTR) project, we evaluated the performance of a click-based model on users searching English Wikipedia. We found that users were slightly more likely to engage with MLR-provided results than with BM25 results (assessed via the clickthrough rate and a preference statistic). We also found that users with machine learning-ranked results were statistically significantly more likely to click on the first search result first than users with BM25-ranked results, which indicates that we are onto something. The next step for us is to evaluate the model’s performance on Wikipedia in other languages.</p>
+</div>
+
+</div>
+
+
+<style type="text/css">
+@import url('https://fonts.googleapis.com/css?family=Source+Code+Pro|Source+Sans+Pro|Source+Serif+Pro');
+body, p {
+  font-family: 'Source Serif Pro', serif;
+  font-size: 12pt;
+}
+pre, code {
+  font-family: 'Source Code Pro', monospace;
+}
+table, tr, td, h1, h2, h3, h4, h5, h6 {
+  font-family: 'Source Sans Pro', sans-serif;
+}
+p.abstract {
+  font-family: 'Source Sans Pro', sans-serif;
+  font-weight: bold;
+  font-size: 14pt !important;
+}
+</style>
+<script type="text/javascript">
+$(function() {
+  /* Lets the user click on the images to view them in full resolution. */
+  $("div.figure img").wrap(function() {
+    var link = $('<a/>');
+    link.attr('href', $(this).attr('src'));
+    link.attr('title', $(this).attr('alt'));
+    link.attr('target', '_blank');
+    return link;
+  });
+  $("p.abstract").text("Executive Summary");
+  $("div#wmf").wrap('<a href="https://wikimediafoundation.org/" />');
+});
+</script>
+<p style="text-align: center;">
+<a title="By Github project phacility/phabricator & w:de:User:Perhelion [Apache License 2.0 (http://www.apache.org/licenses/LICENSE-2.0)], via Wikimedia Commons" href="https://commons.wikimedia.org/wiki/File%3AFavicon-Phabricator-WM.png"><img width="16" alt="Favicon-Phabricator-WM" src="https://upload.wikimedia.org/wikipedia/commons/7/72/Favicon-Phabricator-WM.png"/></a> <a href="https://phabricator.wikimedia.org/T171215", title="T171215">Phabricator ticket</a> | <a title="By The Open Source Initiative [CC BY 2.5 (http://creativecommons.org/licenses/by/2.5)], via Wikimedia Commons" href="https://commons.wikimedia.org/wiki/File%3AOpen_Source_Initiative_keyhole.svg"><img width="16" alt="Open Source Initiative keyhole" src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/Open_Source_Initiative_keyhole.svg/16px-Open_Source_Initiative_keyhole.svg.png"/></a> <a href="https://github.com/wikimedia-research/Discovery-Search-Test-InterleavedLTR">Open source analysis</a>
+</p>
+<div id="introduction" class="section level1">
+<h1>Introduction</h1>
+<p>The <a href="https://www.mediawiki.org/wiki/Wikimedia_Technology">Wikimedia Technology</a> <a href="https://www.mediawiki.org/wiki/Wikimedia_Technology#Search_Platform">Search Platform</a> team strives to make search better on <a href="https://en.wikipedia.org/wiki/Wikimedia_Foundation#Wikimedia_projects">Wikimedia projects</a>. Earlier this year we began researching <a href="https://en.wikipedia.org/wiki/Machine_learning">machine learning</a> (ML) for <a href="https://en.wikipedia.org/wiki/Information_retrieval">information retrieval</a>, which is explained below. Once we had trained a model to predict a document’s relevance, the next step was to evaluate its performance in the real world with actual users searching <a href="https://en.wikipedia.org/wiki/Wikipedia">Wikipedia</a>. We performed two experiments from August 8th, 2017, to August 29th, 2017 – a traditional randomized controlled experiment (<a href="https://en.wikipedia.org/wiki/A/B_testing">A/B test</a>) and one where users saw an interleaved mix of search results from two different ways to retrieve information (also explained below).</p>
+<div id="learning-to-rank-ltr" class="section level2">
+<h2>Learning to rank (LTR)</h2>
+<p>Previously, our search engine used term frequency—inverse document frequency (<a href="https://en.wikipedia.org/wiki/Tf%E2%80%93idf">tf—idf</a>) for ranking documents (e.g. articles and other pages on English Wikipedia). After successful A/B testing <span class="citation">(Bernhardson et al. <a href="#ref-BM25-1">2016</a>, <a href="#ref-BM25-2">2017</a>)</span>, we switched to <a href="https://en.wikipedia.org/wiki/Okapi_BM25">BM25 scoring algorithm</a> which is currently in production on almost all languages, except a few space-less languages. Our current efforts are focused on information retrieval using <a href="https://en.wikipedia.org/wiki/Learning_to_rank">machine-learned ranking</a> (MLR). In MLR, a model is trained to predict a document’s relevance from various document-level and <a href="https://en.wikipedia.org/wiki/Query_level_feature">query-level</a> features which represent the document.</p>
+<p><em>MjoLniR</em> – our Python and Spark-based library for handling the backend data processing for Machine Learned Ranking at Wikimedia – uses a click-based <a href="https://en.wikipedia.org/wiki/Dynamic_Bayesian_network">Dynamic Bayesian Network</a> <span class="citation">(Chapelle and Zhang <a href="#ref-DBNclix-2009">2009</a>)</span> (implemented via <a href="https://github.com/varepsilon/clickmodels">ClickModels</a> Python library) to create relevance labels for training data fed into <a href="https://en.wikipedia.org/wiki/Xgboost">XGBoost</a>. It is <a href="https://github.com/wikimedia/search-MjoLniR">available as open source</a>. We are currently developing a system for crowd-sourcing relevance judgements <a href="https://people.wikimedia.org/~bearloga/reports/search-surveys.html">based on a successful prototype</a>, which would augment the click-based relevance labeling.</p>
+</div>
+<div id="interleaved-search-results" class="section level2">
+<h2>Interleaved search results</h2>
+<p>The way we have been assessing changes to search has so far relied on A/B testing wherein the control group receives results using the latest configuration and the test group (or groups) receives results using the experimental configuration. Another way to evaluate the user-perceived relevance of search results from the experimental configuration relies on a technique called <em>interleaving</em>. In it, each user is their own baseline – we perform two searches behind the scenes and then interleave them together into a single set of results using the team draft algorithm described by Chapelle et al. <span class="citation">(<a href="#ref-Interleaved:2012">2012</a>)</span>:</p>
+<ol style="list-style-type: decimal">
+<li><strong>Input</strong>: result sets <span class="math inline">\(A\)</span> and <span class="math inline">\(B\)</span>.</li>
+<li><strong>Initialize</strong>: an empty interleaved result sets <span class="math inline">\(I\)</span> and drafts <span class="math inline">\(T_A, T_B\)</span> for keeping track of which results belong to which team.</li>
+<li>For each round of picking:
+<ol style="list-style-type: lower-alpha">
+<li>Randomly decide whether we first pick from <span class="math inline">\(A\)</span> or from <span class="math inline">\(B\)</span>.</li>
+<li>Without loss of generality, if <span class="math inline">\(A\)</span> is randomly chosen to go first, grab top result <span class="math inline">\(a \in A\)</span>, append it to <span class="math inline">\(I\)</span> and <span class="math inline">\(T_A\)</span>: <span class="math inline">\(I \gets a, T_A \gets a\)</span>.</li>
+<li>Take the top result <span class="math inline">\(b \in B\)</span> such that <span class="math inline">\(b \neq a\)</span> and append it to <span class="math inline">\(I\)</span> after <span class="math inline">\(a\)</span> and to <span class="math inline">\(T_B\)</span>: <span class="math inline">\(I \gets b, T_B \gets b\)</span>.</li>
+<li>Update <span class="math inline">\(A = A \setminus \{a, b\}\)</span> and <span class="math inline">\(B \setminus \{a, b\}\)</span> so the two results that were just appended to <span class="math inline">\(I\)</span> are not considered again.</li>
+<li>Stop when <span class="math inline">\(|I| = \text{maximum per page}\)</span>, so only the first page contains interleaved results.</li>
+</ol></li>
+<li><strong>Output</strong>: interleaved results <span class="math inline">\(I\)</span> and team drafts <span class="math inline">\(T_A, T_B\)</span>.</li>
+</ol>
+<p>By keeping track of which results belong to which ranking function when the user clicks on them, we can estimate a preference for one ranker over the other.</p>
+</div>
+<div id="experimental-groups" class="section level2">
+<h2>Experimental groups</h2>
+<p>In total there were 6 groups that users could be randomly assigned to. Three of the groups were using in a traditional A/B test setting – some users were randomly assigned to a control group while others were assigned to one of the two experimental groups.</p>
+<ul>
+<li>The control group had results ranked by BM25.</li>
+<li>The “MLR @ 20” experimental group had results ranked by machine learning with a rescore window of 20. This means that each <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/_basic_concepts.html#getting-started-shards-and-replicas">shard</a> (of which English Wikipedia has 7) applies the model to the top 20 results. Those 140 results are then collected and sorted to produce the top 20 shown to the user.</li>
+<li>The “MLR @ 1024” experimental group had results ranked by machine learning with a rescore window of 1024. This means that each of the seven shards applies the model to the top 1024 results. Those 7168 results are then collected and sorted to produce the final top 20 (or top 15) shown to the users, since almost no users look at results beyond the first page.</li>
+</ul>
+<p>The remaining three groups were tested via interleaving the results. Two of the groups saw results that were a mix of BM25-ranked results and one of the flavors of machine learning-ranked results. The third “interleaved results” group saw results from both rescore windows (20 and 1024) so we could assess whether users had a preference for one over the other.</p>
+</div>
+</div>
+<div id="methods" class="section level1">
+<h1>Methods</h1>
+<p>We ran the experiment on the desktop version of English Wikipedia (as opposed to, say, the mobile web or the mobile app versions). Visitors who searched, had JavaScript enabled, and did <em>not</em> have “<a href="https://en.wikipedia.org/wiki/Do_Not_Track">Do Not Track</a>” enabled (a setting we respect) had a 1 in 500 (0.2%) chance of being selected for anonymous tracking. Of those who were selected, 75% were selected for the experiment and the remaining 25% were used for Search Platform team’s analytics. The users who were entered into the test were then randomly assigned to one of the six groups described above.</p>
+<p>This test’s event logging (EL) was implemented in JavaScript according to the <a href="https://meta.wikimedia.org/wiki/Schema:TestSearchSatisfaction2">TestSearchSatisfaction2 (TSS2)</a> schema, which is the one used by the Search team for its metrics on desktop, data was stored in a MySQL database, and analyzed and reported using the software “R” <span class="citation">(R Core Team <a href="#ref-R-base">2016</a>)</span>. A development version of the internal package “wmf” <span class="citation">(Keyes and Popov <a href="#ref-R-wmf">2017</a>)</span> was used for the analysis of data from the users with interleaved search results using the preference statistic <span class="math inline">\(\Delta_{AB}\)</span> described by Chapelle et al. <span class="citation">(<a href="#ref-Interleaved:2012">2012</a>)</span>:</p>
+<p><span class="math display">\[
+\Delta_{AB} = \frac{\text{wins}_A + \frac{1}{2} \text{ties}}{\text{wins}_A + \text{wins}_B + \text{ties}} - 0.5,
+\]</span></p>
+<p>where wins are calculated by counting clicks on the results from teams “A” and “B”. A positive value of <span class="math inline">\(\Delta_{AB}\)</span> indicates that <span class="math inline">\(A \succ B\)</span>, a negative value indicates that <span class="math inline">\(B \succ A\)</span>. We performed two types of calculations: per-session and per-search. In <strong>per-session</strong>, “A” has won if there are more clicks on team “A” results than team “B” results and <span class="math inline">\(\text{wins}_A\)</span> is incremented by one for each such session. In <strong>per-search</strong>, “A” has won if there are more clicks on team “A” results in each search, thus any one session can contribute multiple points to the overall <span class="math inline">\(\text{wins}_A\)</span>.</p>
+<p>In order to obtain confidence intervals for the preference statistic, we utilized <a href="https://en.wikipedia.org/wiki/Bootstrapping_(statistics)">bootstrapping</a> with 1000 iterations. Since we calculated the preference on per-session and per-search levels, we correspondingly employed two resampling approaches: sampling sessions and sampling searches.</p>
+<ol style="list-style-type: decimal">
+<li>For bootstrap iteration <span class="math inline">\(i = 1, \ldots, m\)</span> (<span class="math inline">\(m = 1000\)</span>):
+<ol style="list-style-type: lower-alpha">
+<li>Sample unique IDs with replacement.
+<ul>
+<li>If sampling <em>sessions</em>, the unique IDs are session IDs, which maintains per-session correlations between searches.</li>
+<li>If sampling <em>searches</em>, the unique IDs are a combinaton of session IDs and search IDs.</li>
+</ul></li>
+<li>Calculate <span class="math inline">\(\Delta_{AB}^{(i)}\)</span> from new data.</li>
+</ol></li>
+<li>The confidence intervals (CIs) are calculated by finding percentiles of the distribution of bootstrapped preferences <span class="math inline">\(\{\Delta_{AB}^{(1)}, \ldots, \Delta_{AB}^{(m)}\}\)</span> – e.g. the 2.5th and 97.5th percentiles for a 95% CI.</li>
+</ol>
+</div>
+<div id="results" class="section level1">
+<h1>Results</h1>
+<p>In the traditional A/B test setting, we recorded 9,951 sessions – which performed 18,599 searches – for the control group (who received BM25-ranked results). The MLR@20 experimental group had 9,852 sessions which performed 21,328 searches, and the MLR@1024 experimental group had 9,744 sessions which performed 17,728 searches. There were a total of 29,802 sessions in the interleaved test setting which performed a total of 57,944 searches. However, we had to apply a filter that excluded sessions which performed more than 50 searches. Specifically, 74 sessions (which performed a total of 10,813 searches) across all 6 groups were excluded from analysis.</p>
+<div id="traditional-test" class="section level2">
+<h2>Traditional test</h2>
+<div id="zero-results-rate" class="section level3">
+<h3>Zero results rate</h3>
+<p>While we were not targeting zero results rate (ZRR – the proportion of searches yielding no results) as our LTR work is more concerned with relevance of the search results rather than the volume of returned results (<a href="https://en.wikipedia.org/wiki/Precision_and_recall"><em>precision</em> vs <em>recall</em></a>), we do include ZRR as a health metric. Indeed, Figure 1 shows that roughly the same proportions of searches yielded zero results across the three groups. Any difference in ZRR is purely noise, since there’s no difference in retrieval for the different groups, only differences in ranking.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">set.seed</span>(<span class="dv">0</span>)
+zrr &lt;-<span class="st"> </span>serp_clicks[valid <span class="op">==</span><span class="st"> </span><span class="ot">TRUE</span>, <span class="kw">list</span>(<span class="dt">some_results =</span> <span class="kw">max</span>(hits_returned, <span class="dt">na.rm =</span> <span class="ot">TRUE</span>) <span class="op">&gt;</span><span class="st"> </span><span class="dv">0</span>),
+                   by =<span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;group_id&quot;</span>, <span class="st">&quot;session_id&quot;</span>, <span class="st">&quot;search_id&quot;</span>)] <span class="op">%&gt;%</span>
+<span class="st">  </span>.[, <span class="kw">list</span>(<span class="dt">searches =</span> .N, <span class="dt">zero =</span> <span class="kw">sum</span>(<span class="op">!</span>some_results)), by =<span class="st"> &quot;group_id&quot;</span>] <span class="op">%&gt;%</span>
+<span class="st">  </span>{ <span class="kw">cbind</span>(<span class="dt">group =</span> .<span class="op">$</span>group_id, binom<span class="op">::</span><span class="kw">binom.bayes</span>(.<span class="op">$</span>zero, .<span class="op">$</span>searches)) }
+
+<span class="kw">ggplot</span>(zrr, <span class="kw">aes</span>(<span class="dt">x =</span> group, <span class="dt">color =</span> group, <span class="dt">y =</span> mean, <span class="dt">ymin =</span> lower, <span class="dt">ymax =</span> upper)) <span class="op">+</span>
+<span class="st">  </span><span class="kw">geom_linerange</span>() <span class="op">+</span>
+<span class="st">  </span><span class="kw">geom_label</span>(<span class="kw">aes</span>(<span class="dt">label =</span> <span class="kw">sprintf</span>(<span class="st">&quot;%.2f%%&quot;</span>, <span class="dv">100</span> <span class="op">*</span><span class="st"> </span>mean)), <span class="dt">show.legend =</span> <span class="ot">FALSE</span>) <span class="op">+</span>
+<span class="st">  </span><span class="kw">scale_color_brewer</span>(<span class="dt">palette =</span> <span class="st">&quot;Set1&quot;</span>) <span class="op">+</span>
+<span class="st">  </span><span class="kw">scale_y_continuous</span>(
+    <span class="dt">labels =</span> scales<span class="op">::</span><span class="kw">percent_format</span>(), <span class="dt">limits =</span> <span class="kw">c</span>(<span class="fl">0.08</span>, <span class="fl">0.1</span>),
+    <span class="dt">breaks =</span> <span class="kw">seq</span>(<span class="fl">0.08</span>, <span class="fl">0.1</span>, <span class="fl">0.01</span>), <span class="dt">minor_breaks =</span> <span class="kw">seq</span>(<span class="fl">0.08</span>, <span class="fl">0.1</span>, <span class="fl">0.005</span>)
+  ) <span class="op">+</span>
+<span class="st">  </span><span class="kw">labs</span>(
+    <span class="dt">x =</span> <span class="st">&quot;Group&quot;</span>, <span class="dt">color =</span> <span class="st">&quot;Group&quot;</span>, <span class="dt">y =</span> <span class="st">&quot;Zero results rate&quot;</span>,
+    <span class="dt">title =</span> <span class="st">&quot;Proportion of searches yielding no results, by group&quot;</span>,
+    <span class="dt">subtitle =</span> <span class="kw">sprintf</span>(<span class="st">&quot;95%% credible intervals* computed using data from %s to %s&quot;</span>, <span class="kw">min</span>(serp_clicks<span class="op">$</span>date), <span class="kw">max</span>(serp_clicks<span class="op">$</span>date)),
+    <span class="dt">caption =</span> <span class="st">&quot;* constructed using highest probability density (HPD)&quot;</span>
+  ) <span class="op">+</span>
+<span class="st">  </span>wmf<span class="op">::</span><span class="kw">theme_min</span>(<span class="dv">14</span>, <span class="kw">ifelse</span>(<span class="kw">is_html</span>(), <span class="st">&quot;Source Sans Pro&quot;</span>, <span class="st">&quot;Gill Sans&quot;</span>))</code></pre></div>
+<div class="figure">
+<img src="index_files/figure-html/zrr-1.png" alt="**Figure 1**: The zero results rate is not significantly different for the searches using MLR than the control group which used BM25 ranking." width="\textwidth" />
+<p class="caption">
+<strong>Figure 1</strong>: The zero results rate is not significantly different for the searches using MLR than the control group which used BM25 ranking.
+</p>
+</div>
+</div>
+<div id="clickthrough-rate" class="section level3">
+<h3>Clickthrough rate</h3>
+<p>Currently, our primary assessment of performance with respect to relevance is users’ engagement with their search results as measured by their clickthrough rate – the proportion of searches where the user received some search results and clicked on at least one of them. Figure 2 shows that users who received MLR results were slightly more likely to engage with those results than users who received results retrieved via BM25.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">set.seed</span>(<span class="dv">0</span>)
+ctr &lt;-<span class="st"> </span>serp_clicks[valid <span class="op">==</span><span class="st"> </span><span class="ot">TRUE</span>, <span class="kw">list</span>(<span class="dt">clickthrough =</span> <span class="kw">any</span>(event <span class="op">==</span><span class="st"> &quot;click&quot;</span>), <span class="dt">max_hits =</span> <span class="kw">max</span>(hits_returned, <span class="dt">na.rm =</span> <span class="ot">TRUE</span>)),
+                   by =<span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;group_id&quot;</span>, <span class="st">&quot;session_id&quot;</span>, <span class="st">&quot;search_id&quot;</span>)] <span class="op">%&gt;%</span>
+<span class="st">  </span><span class="co"># filter out searches with 0 results</span>
+<span class="st">  </span>.[max_hits <span class="op">&gt;</span><span class="st"> </span><span class="dv">0</span>, <span class="kw">list</span>(<span class="dt">searches =</span> .N, <span class="dt">clickthroughs =</span> <span class="kw">sum</span>(clickthrough)), by =<span class="st"> &quot;group_id&quot;</span>] <span class="op">%&gt;%</span>
+<span class="st">  </span>{ <span class="kw">cbind</span>(<span class="dt">group =</span> .<span class="op">$</span>group_id, binom<span class="op">::</span><span class="kw">binom.bayes</span>(.<span class="op">$</span>clickthroughs, .<span class="op">$</span>searches)) }
+
+<span class="kw">ggplot</span>(ctr, <span class="kw">aes</span>(<span class="dt">x =</span> group, <span class="dt">color =</span> group, <span class="dt">y =</span> mean, <span class="dt">ymin =</span> lower, <span class="dt">ymax =</span> upper)) <span class="op">+</span>
+<span class="st">  </span><span class="kw">geom_linerange</span>() <span class="op">+</span>
+<span class="st">  </span><span class="kw">geom_label</span>(<span class="kw">aes</span>(<span class="dt">label =</span> <span class="kw">sprintf</span>(<span class="st">&quot;%.2f%%&quot;</span>, <span class="dv">100</span> <span class="op">*</span><span class="st"> </span>mean)), <span class="dt">show.legend =</span> <span class="ot">FALSE</span>) <span class="op">+</span>
+<span class="st">  </span><span class="kw">scale_color_brewer</span>(<span class="dt">palette =</span> <span class="st">&quot;Set1&quot;</span>) <span class="op">+</span>
+<span class="st">  </span><span class="kw">scale_y_continuous</span>(<span class="dt">labels =</span> scales<span class="op">::</span><span class="kw">percent_format</span>()) <span class="op">+</span>
+<span class="st">  </span><span class="kw">labs</span>(
+    <span class="dt">x =</span> <span class="st">&quot;Group&quot;</span>, <span class="dt">color =</span> <span class="st">&quot;Group&quot;</span>, <span class="dt">y =</span> <span class="st">&quot;Clickthrough rate&quot;</span>,
+    <span class="dt">title =</span> <span class="st">&quot;Proportion of searches where the user clicked a result, by group&quot;</span>,
+    <span class="dt">subtitle =</span> <span class="kw">sprintf</span>(<span class="st">&quot;95%% credible intervals* computed using data from %s to %s&quot;</span>, <span class="kw">min</span>(serp_clicks<span class="op">$</span>date), <span class="kw">max</span>(serp_clicks<span class="op">$</span>date)),
+    <span class="dt">caption =</span> <span class="st">&quot;* constructed using highest probability density (HPD)&quot;</span>
+  ) <span class="op">+</span>
+<span class="st">  </span>wmf<span class="op">::</span><span class="kw">theme_min</span>(<span class="dv">14</span>, <span class="kw">ifelse</span>(<span class="kw">is_html</span>(), <span class="st">&quot;Source Sans Pro&quot;</span>, <span class="st">&quot;Gill Sans&quot;</span>))</code></pre></div>
+<div class="figure">
+<img src="index_files/figure-html/ctr-1.png" alt="**Figure 2**: MLR@20 experimental group had slightly higher engagement with their MLR-provided search results than the control group had with their BM25-provided search results, but not by much." width="\textwidth" />
+<p class="caption">
+<strong>Figure 2</strong>: MLR@20 experimental group had slightly higher engagement with their MLR-provided search results than the control group had with their BM25-provided search results, but not by much.
+</p>
+</div>
+</div>
+<div id="position-of-first-click" class="section level3">
+<h3>Position of first click</h3>
+<p>Another way to assess the relevance quality of search results is to look at which results users clicked first. Specifically, one could assume that the first result a user clicks on is the one they judged to be the most relevant and that the position of the first clicked result gives an insight into how well the ranker performs.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">set.seed</span>(<span class="dv">0</span>)
+first_click &lt;-<span class="st"> </span>serp_clicks <span class="op">%&gt;%</span>
+<span class="st">  </span>as.data.frame <span class="op">%&gt;%</span>
+<span class="st">  </span><span class="kw">keep_where</span>(event <span class="op">==</span><span class="st"> &quot;click&quot;</span>, valid <span class="op">==</span><span class="st"> </span><span class="ot">TRUE</span>) <span class="op">%&gt;%</span>
+<span class="st">  </span><span class="kw">group_by</span>(group_id, session_id, search_id) <span class="op">%&gt;%</span>
+<span class="st">  </span>dplyr<span class="op">::</span><span class="kw">top_n</span>(<span class="dv">1</span>, ts) <span class="op">%&gt;%</span>
+<span class="st">  </span><span class="kw">group_by</span>(group_id, position) <span class="op">%&gt;%</span>
+<span class="st">  </span>dplyr<span class="op">::</span><span class="kw">tally</span>() <span class="op">%&gt;%</span>
+<span class="st">  </span><span class="kw">mutate</span>(
+    <span class="dt">position =</span> dplyr<span class="op">::</span><span class="kw">if_else</span>(
+      position <span class="op">&lt;</span><span class="st"> </span><span class="dv">4</span>,
+      purrr<span class="op">::</span><span class="kw">map_chr</span>(position <span class="op">+</span><span class="st"> </span><span class="dv">1</span>, toOrdinal<span class="op">::</span>toOrdinal),
+      <span class="st">&quot;5+&quot;</span>
+    ),
+    <span class="dt">position =</span> <span class="kw">factor</span>(position, <span class="kw">c</span>(<span class="st">&quot;1st&quot;</span>, <span class="st">&quot;2nd&quot;</span>, <span class="st">&quot;3rd&quot;</span>, <span class="st">&quot;4th&quot;</span>, <span class="st">&quot;5+&quot;</span>))
+  ) <span class="op">%&gt;%</span>
+<span class="st">  </span><span class="kw">group_by</span>(group_id, position) <span class="op">%&gt;%</span>
+<span class="st">  </span><span class="kw">summarize</span>(<span class="dt">n =</span> <span class="kw">sum</span>(n)) <span class="op">%&gt;%</span>
+<span class="st">  </span><span class="kw">mutate</span>(<span class="dt">total =</span> <span class="kw">sum</span>(n)) <span class="op">%&gt;%</span>
+<span class="st">  </span>ungroup <span class="op">%&gt;%</span>
+<span class="st">  </span>{ <span class="kw">cbind</span>(., binom<span class="op">::</span><span class="kw">binom.bayes</span>(.<span class="op">$</span>n, .<span class="op">$</span>total)) }
+
+<span class="kw">ggplot</span>(first_click, <span class="kw">aes</span>(<span class="dt">x =</span> position, <span class="dt">y =</span> mean, <span class="dt">fill =</span> group_id)) <span class="op">+</span>
+<span class="st">  </span><span class="kw">geom_bar</span>(<span class="dt">stat =</span> <span class="st">&quot;identity&quot;</span>, <span class="dt">position =</span> <span class="kw">position_dodge</span>(<span class="dt">width =</span> <span class="fl">0.9</span>), <span class="dt">color =</span> <span class="st">&quot;white&quot;</span>) <span class="op">+</span>
+<span class="st">  </span><span class="kw">geom_errorbar</span>(<span class="kw">aes</span>(<span class="dt">ymin =</span> lower, <span class="dt">ymax =</span> upper), <span class="dt">position =</span> <span class="kw">position_dodge</span>(<span class="dt">width =</span> <span class="fl">0.9</span>), <span class="dt">width =</span> <span class="fl">0.2</span>) <span class="op">+</span>
+<span class="st">  </span><span class="kw">geom_text</span>(
+    <span class="kw">aes</span>(<span class="dt">label =</span> <span class="kw">sprintf</span>(<span class="st">&quot;%.1f%%&quot;</span>, <span class="dv">100</span> <span class="op">*</span><span class="st"> </span>mean), <span class="dt">y =</span> upper <span class="op">+</span><span class="st"> </span><span class="fl">0.01</span>),
+    <span class="dt">position =</span> <span class="kw">position_dodge</span>(<span class="dt">width =</span> <span class="fl">0.9</span>),
+    <span class="dt">vjust =</span> <span class="st">&quot;bottom&quot;</span>
+  ) <span class="op">+</span>
+<span class="st">  </span><span class="kw">scale_fill_brewer</span>(<span class="dt">palette =</span> <span class="st">&quot;Set1&quot;</span>) <span class="op">+</span>
+<span class="st">  </span><span class="kw">scale_y_continuous</span>(<span class="dt">labels =</span> scales<span class="op">::</span><span class="kw">percent_format</span>()) <span class="op">+</span>
+<span class="st">  </span><span class="kw">labs</span>(
+    <span class="dt">x =</span> <span class="st">&quot;Position&quot;</span>, <span class="dt">y =</span> <span class="st">&quot;Proportion of searches with a clickthrough&quot;</span>,
+    <span class="dt">fill =</span> <span class="st">&quot;Group&quot;</span>, <span class="dt">title =</span> <span class="st">&quot;Position of first clicked result, by group&quot;</span>,
+    <span class="dt">subtitle =</span> <span class="st">&quot;Error bars indicate 95% credible interval (via HPD)&quot;</span>
+  ) <span class="op">+</span>
+<span class="st">  </span>wmf<span class="op">::</span><span class="kw">theme_min</span>(<span class="dv">14</span>, <span class="kw">ifelse</span>(<span class="kw">is_html</span>(), <span class="st">&quot;Source Sans Pro&quot;</span>, <span class="st">&quot;Gill Sans&quot;</span>))</code></pre></div>
+<div class="figure">
+<img src="index_files/figure-html/first_click-1.png" alt="**Figure 3**: While users in general tend to click on the first search result first, users in the groups with MLR-provided results were slightly more likely than users in the control group with BM25-provided results." width="\textwidth" />
+<p class="caption">
+<strong>Figure 3</strong>: While users in general tend to click on the first search result first, users in the groups with MLR-provided results were slightly more likely than users in the control group with BM25-provided results.
+</p>
+</div>
+<p>Figure 3 shows that that a slightly higher proportion of users in the MLR groups clicked on the first search result first than the users in the control group. Focusing on first position specifically, we found that:</p>
+<ul>
+<li>The difference between control group and MLR@20 group was <em>not</em> statistically significant.</li>
+<li>The difference between control group and MLR@1024 group <em>was</em> statistically significant.</li>
+<li>The difference between MLR@20 and MLR@1024 groups was <em>not</em> statistically significant.</li>
+</ul>
+</div>
+<div id="page-visit-times" class="section level3">
+<h3>Page visit times</h3>
+<p>When a user is enrolled into search analytics tracking, we use <a href="https://en.wikipedia.org/wiki/Survival_analysis">survival analysis</a> to estimate how long they keep clicked search results open. While the intent of the user making the search can vary and the time spent on visited pages varies with that – for example, we cannot expect the user who searched for “barack obama birthdate” to stay on Barack Obama’s Wikipedia article for more than a few seconds after seeing the birthdate in the infobox – this is still a window into potential differences in users’ perception of the results. Specifically, Figure 4 shows that users who navigated to articles from search with MLR results were slightly more likely to stay on those articles longer, perhaps because they were more relevant.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">temp &lt;-<span class="st"> </span>page_visits[valid <span class="op">==</span><span class="st"> </span><span class="ot">TRUE</span>, {
+  <span class="cf">if</span> (<span class="kw">any</span>(.SD<span class="op">$</span>event <span class="op">==</span><span class="st"> &quot;checkin&quot;</span>)) {
+    last_checkin &lt;-<span class="st"> </span><span class="kw">max</span>(.SD<span class="op">$</span>checkin, <span class="dt">na.rm =</span> <span class="ot">TRUE</span>)
+    idx &lt;-<span class="st"> </span><span class="kw">which</span>(checkins <span class="op">&gt;</span><span class="st"> </span>last_checkin)
+    <span class="cf">if</span> (<span class="kw">length</span>(idx) <span class="op">==</span><span class="st"> </span><span class="dv">0</span>) idx &lt;-<span class="st"> </span><span class="dv">16</span>
+    next_checkin &lt;-<span class="st"> </span>checkins[<span class="kw">min</span>(idx)]
+    status &lt;-<span class="st"> </span><span class="kw">ifelse</span>(last_checkin <span class="op">==</span><span class="st"> </span><span class="dv">420</span>, <span class="dv">0</span>, <span class="dv">3</span>)
+    data.table<span class="op">::</span><span class="kw">data.table</span>(
+      <span class="st">`</span><span class="dt">last check-in</span><span class="st">`</span> =<span class="st"> </span><span class="kw">as.integer</span>(last_checkin),
+      <span class="st">`</span><span class="dt">next check-in</span><span class="st">`</span> =<span class="st"> </span><span class="kw">as.integer</span>(next_checkin),
+      <span class="dt">status =</span> <span class="kw">as.integer</span>(status)
+    )
+  }
+}, by =<span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;group_id&quot;</span>, <span class="st">&quot;session_id&quot;</span>, <span class="st">&quot;search_id&quot;</span>)]
+surv &lt;-<span class="st"> </span>survival<span class="op">::</span><span class="kw">Surv</span>(
+  <span class="dt">time =</span> temp<span class="op">$</span><span class="st">`</span><span class="dt">last check-in</span><span class="st">`</span>,
+  <span class="dt">time2 =</span> temp<span class="op">$</span><span class="st">`</span><span class="dt">next check-in</span><span class="st">`</span>,
+  <span class="dt">event =</span> temp<span class="op">$</span>status,
+  <span class="dt">type =</span> <span class="st">&quot;interval&quot;</span>
+)
+fit &lt;-<span class="st"> </span>survival<span class="op">::</span><span class="kw">survfit</span>(surv <span class="op">~</span><span class="st"> </span>temp<span class="op">$</span>group_id)
+km &lt;-<span class="st"> </span>survminer<span class="op">::</span><span class="kw">ggsurvplot</span>(
+  fit, <span class="dt">data =</span> temp,
+  <span class="dt">palette =</span> <span class="st">&quot;Set1&quot;</span>, <span class="dt">conf.int =</span> <span class="ot">FALSE</span>,
+  <span class="dt">ggtheme =</span> wmf<span class="op">::</span><span class="kw">theme_min</span>(<span class="dv">14</span>, <span class="kw">ifelse</span>(<span class="kw">is_html</span>(), <span class="st">&quot;Source Sans Pro&quot;</span>, <span class="st">&quot;Gill Sans&quot;</span>)),
+  <span class="dt">title =</span> <span class="st">&quot;How long users stay on clicked results, by group&quot;</span>,
+  <span class="dt">subtitle =</span> <span class="st">&quot;Kaplan–Meier curve of estimated survival probability&quot;</span>,
+  <span class="dt">xlab =</span> <span class="st">&quot;Time (s)&quot;</span>, <span class="dt">ylab =</span> <span class="st">&quot;Probability of visited page staying open this long&quot;</span>
+)
+km<span class="op">$</span>plot &lt;-<span class="st"> </span>km<span class="op">$</span>plot <span class="op">+</span><span class="st"> </span><span class="kw">scale_y_continuous</span>(<span class="dt">labels =</span> scales<span class="op">::</span><span class="kw">percent_format</span>())
+<span class="kw">print</span>(km)</code></pre></div>
+<div class="figure">
+<img src="index_files/figure-html/surv_ab-1.png" alt="**Figure 4**: Users were slightly more likely to stay on MLR-provided pages longer than users who clicked on BM25-provided results." width="\textwidth" />
+<p class="caption">
+<strong>Figure 4</strong>: Users were slightly more likely to stay on MLR-provided pages longer than users who clicked on BM25-provided results.
+</p>
+</div>
+</div>
+<div id="pagination-navigation" class="section level3">
+<h3>Pagination navigation</h3>
+<p>Figure 5 shows that users did not explore the various pages of search results presented to them and mostly stayed on the first page containing the top 20 (or top 15) results. It also shows that there were no significant differences between the groups.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">set.seed</span>(<span class="dv">0</span>)
+explored &lt;-<span class="st"> </span>serp_clicks <span class="op">%&gt;%</span>
+<span class="st">  </span>as.data.frame <span class="op">%&gt;%</span>
+<span class="st">  </span><span class="kw">keep_where</span>(event <span class="op">==</span><span class="st"> &quot;searchResultPage&quot;</span> <span class="op">&amp;</span><span class="st"> </span>hits_returned <span class="op">&gt;</span><span class="st"> </span><span class="dv">0</span>, valid <span class="op">==</span><span class="st"> </span><span class="ot">TRUE</span>) <span class="op">%&gt;%</span>
+<span class="st">  </span><span class="kw">group_by</span>(group_id, session_id, search_id) <span class="op">%&gt;%</span>
+<span class="st">  </span><span class="kw">summarize</span>(<span class="dt">explored =</span> <span class="kw">max</span>(offset, <span class="dt">na.rm =</span> <span class="ot">TRUE</span>) <span class="op">&gt;</span><span class="st"> </span><span class="dv">0</span>) <span class="op">%&gt;%</span>
+<span class="st">  </span><span class="kw">group_by</span>(group_id) <span class="op">%&gt;%</span>
+<span class="st">  </span><span class="kw">summarize</span>(<span class="dt">searches =</span> <span class="kw">n</span>(), <span class="dt">explored =</span> <span class="kw">sum</span>(explored)) <span class="op">%&gt;%</span>
+<span class="st">  </span>{ <span class="kw">cbind</span>(<span class="dt">group =</span> .<span class="op">$</span>group_id, binom<span class="op">::</span><span class="kw">binom.bayes</span>(.<span class="op">$</span>explored, .<span class="op">$</span>searches)) }
+
+<span class="kw">ggplot</span>(explored, <span class="kw">aes</span>(<span class="dt">x =</span> group, <span class="dt">color =</span> group, <span class="dt">y =</span> mean, <span class="dt">ymin =</span> lower, <span class="dt">ymax =</span> upper)) <span class="op">+</span>
+<span class="st">  </span><span class="kw">geom_linerange</span>() <span class="op">+</span>
+<span class="st">  </span><span class="kw">geom_label</span>(<span class="kw">aes</span>(<span class="dt">label =</span> <span class="kw">sprintf</span>(<span class="st">&quot;%.2f%%&quot;</span>, <span class="dv">100</span> <span class="op">*</span><span class="st"> </span>mean)), <span class="dt">show.legend =</span> <span class="ot">FALSE</span>) <span class="op">+</span>
+<span class="st">  </span><span class="kw">scale_color_brewer</span>(<span class="dt">palette =</span> <span class="st">&quot;Set1&quot;</span>) <span class="op">+</span>
+<span class="st">  </span><span class="kw">scale_y_continuous</span>(<span class="dt">labels =</span> scales<span class="op">::</span><span class="kw">percent_format</span>()) <span class="op">+</span>
+<span class="st">  </span><span class="kw">labs</span>(
+    <span class="dt">x =</span> <span class="st">&quot;Group&quot;</span>, <span class="dt">color =</span> <span class="st">&quot;Group&quot;</span>, <span class="dt">y =</span> <span class="st">&quot;Proportion of searches that yielded some results&quot;</span>,
+    <span class="dt">title =</span> <span class="st">&quot;Proportion of searches where the user viewed additional results, by group&quot;</span>,
+    <span class="dt">subtitle =</span> <span class="kw">sprintf</span>(<span class="st">&quot;95%% HPD intervals computed using data from %s to %s&quot;</span>, <span class="kw">min</span>(serp_clicks<span class="op">$</span>date), <span class="kw">max</span>(serp_clicks<span class="op">$</span>date)),
+    <span class="dt">caption =</span> <span class="st">&quot;By tracking the offset values, we are able to know when the user clicked on page 2 or 3 of search results.&quot;</span>
+  ) <span class="op">+</span>
+<span class="st">  </span>wmf<span class="op">::</span><span class="kw">theme_min</span>(<span class="dv">14</span>, <span class="kw">ifelse</span>(<span class="kw">is_html</span>(), <span class="st">&quot;Source Sans Pro&quot;</span>, <span class="st">&quot;Gill Sans&quot;</span>))</code></pre></div>
+<div class="figure">
+<img src="index_files/figure-html/explored-1.png" alt="**Figure 5**: Users rarely clicked past the first page of search results and primarily saw the top 20 (or top 15) results. There were no significant differences in the proportions of sessions (which yielded search results) between the three groups." width="\textwidth" />
+<p class="caption">
+<strong>Figure 5</strong>: Users rarely clicked past the first page of search results and primarily saw the top 20 (or top 15) results. There were no significant differences in the proportions of sessions (which yielded search results) between the three groups.
+</p>
+</div>
+</div>
+</div>
+<div id="interleaved-test" class="section level2">
+<h2>Interleaved test</h2>
+<div id="preference" class="section level3">
+<h3>Preference</h3>
+<p>In the interleaved setting where users saw a mix of search results from two different ranking functions, we observed a slight but statistically insignificant preference for results from MLR@20 and specifically from MLR@1024. The daily preferences in Figure 6 show a count of days in which users preferred results from team “A” versus results from team “B”. For example, there were 6-8 days in which users preferred results from BM25 and 13-15 days in which users preferred results from MLR with a rescore window of 1024. Looking at the overall preferences in Figure 7, users showed a slightly higher preferences for MLR@1024 results over BM25 results than for MLR@20 results over BM25 results, but when we presented them with MLR results from both rescore windows, there was practically no preference.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">events &lt;-<span class="st"> </span>interleaved[
+  <span class="op">!</span><span class="kw">is.na</span>(team) <span class="op">&amp;</span><span class="st"> </span>team <span class="op">!=</span><span class="st"> &quot;&quot;</span> <span class="op">&amp;</span><span class="st"> </span>event <span class="op">==</span><span class="st"> &quot;visitPage&quot;</span> <span class="op">&amp;</span><span class="st"> </span>valid <span class="op">==</span><span class="st"> </span><span class="ot">TRUE</span>,
+  <span class="kw">c</span>(<span class="st">&quot;date&quot;</span>, <span class="st">&quot;group_id&quot;</span>, <span class="st">&quot;session_id&quot;</span>, <span class="st">&quot;search_id&quot;</span>, <span class="st">&quot;team&quot;</span>),
+  with =<span class="st"> </span><span class="ot">TRUE</span>
+]
+events &lt;-<span class="st"> </span>events[<span class="kw">order</span>(events<span class="op">$</span>date, events<span class="op">$</span>group_id, events<span class="op">$</span>session_id, events<span class="op">$</span>search_id, events<span class="op">$</span>team), ]
+pref_daily &lt;-<span class="st"> </span>events[, j =<span class="st"> </span><span class="kw">list</span>(
+  <span class="st">&quot;Sampling sessions&quot;</span> =<span class="st"> </span>wmf<span class="op">::</span><span class="kw">interleaved_preference</span>(<span class="kw">paste</span>(.SD<span class="op">$</span>session_id), .SD<span class="op">$</span>team),
+  <span class="st">&quot;Sampling searches&quot;</span> =<span class="st"> </span>wmf<span class="op">::</span><span class="kw">interleaved_preference</span>(<span class="kw">paste</span>(.SD<span class="op">$</span>session_id, .SD<span class="op">$</span>search_id), .SD<span class="op">$</span>team)
+), by =<span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;date&quot;</span>, <span class="st">&quot;group_id&quot;</span>)] <span class="op">%&gt;%</span>
+<span class="st">  </span>tidyr<span class="op">::</span><span class="kw">gather</span>(method, observed, <span class="op">-</span><span class="kw">c</span>(date, group_id))
+pref_overall &lt;-<span class="st"> </span>events[, j =<span class="st"> </span><span class="kw">list</span>(
+  <span class="st">&quot;Sampling sessions&quot;</span> =<span class="st"> </span>wmf<span class="op">::</span><span class="kw">interleaved_preference</span>(<span class="kw">paste</span>(.SD<span class="op">$</span>session_id), .SD<span class="op">$</span>team),
+  <span class="st">&quot;Sampling searches&quot;</span> =<span class="st"> </span>wmf<span class="op">::</span><span class="kw">interleaved_preference</span>(<span class="kw">paste</span>(.SD<span class="op">$</span>session_id, .SD<span class="op">$</span>search_id), .SD<span class="op">$</span>team)
+), by =<span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;group_id&quot;</span>)] <span class="op">%&gt;%</span>
+<span class="st">  </span>tidyr<span class="op">::</span><span class="kw">gather</span>(method, observed, <span class="op">-</span><span class="kw">c</span>(group_id))</code></pre></div>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">data.table<span class="op">::</span><span class="kw">setDTthreads</span>(<span class="dv">4</span>) <span class="co"># not sure if this actually even helps</span>
+<span class="kw">set.seed</span>(<span class="dv">42</span>)
+prefs_by_session &lt;-<span class="st"> </span>events[, {
+  preferences &lt;-<span class="st"> </span><span class="kw">vapply</span>(<span class="dv">1</span><span class="op">:</span>m, <span class="cf">function</span>(i) {
+    <span class="kw">set.seed</span>(i)
+    n &lt;-<span class="st"> </span>data.table<span class="op">::</span><span class="kw">uniqueN</span>(.SD<span class="op">$</span>session_id)
+    resampled &lt;-<span class="st"> </span><span class="kw">split</span>(.SD, .SD<span class="op">$</span>session_id)[<span class="kw">sample.int</span>(n, n, <span class="dt">replace =</span> <span class="ot">TRUE</span>)]
+    <span class="kw">names</span>(resampled) &lt;-<span class="st"> </span><span class="dv">1</span><span class="op">:</span>n
+    resampled <span class="op">%&gt;%</span>
+<span class="st">      </span>dplyr<span class="op">::</span><span class="kw">bind_rows</span>(<span class="dt">.id =</span> <span class="st">&quot;sample&quot;</span>) <span class="op">%&gt;%</span>
+<span class="st">      </span><span class="kw">group_by</span>(session_id) <span class="op">%&gt;%</span>
+<span class="st">      </span><span class="kw">mutate</span>(<span class="dt">sample_id =</span> <span class="kw">paste</span>(session_id, <span class="kw">as.numeric</span>(<span class="kw">factor</span>(sample)), <span class="dt">sep =</span> <span class="st">&quot;-&quot;</span>)) <span class="op">%&gt;%</span>
+<span class="st">      </span>ungroup <span class="op">%&gt;%</span>
+<span class="st">      </span>{ wmf<span class="op">::</span><span class="kw">interleaved_preference</span>(.<span class="op">$</span>sample_id, .<span class="op">$</span>team) }
+  }, <span class="fl">0.0</span>)
+  <span class="kw">data.frame</span>(<span class="dt">sample =</span> <span class="dv">1</span><span class="op">:</span>m, <span class="dt">preference =</span> preferences, <span class="dt">method =</span> <span class="st">&quot;Sampling sessions&quot;</span>, <span class="dt">stringsAsFactors =</span> <span class="ot">FALSE</span>)
+}, by =<span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;date&quot;</span>, <span class="st">&quot;group_id&quot;</span>)]
+prefs_by_search &lt;-<span class="st"> </span>events[, {
+  preferences &lt;-<span class="st"> </span><span class="kw">vapply</span>(<span class="dv">1</span><span class="op">:</span>m, <span class="cf">function</span>(i) {
+    <span class="kw">set.seed</span>(i)
+    n &lt;-<span class="st"> </span>data.table<span class="op">::</span><span class="kw">uniqueN</span>(.SD[, <span class="kw">c</span>(<span class="st">&quot;session_id&quot;</span>, <span class="st">&quot;search_id&quot;</span>), <span class="dt">with =</span> <span class="ot">TRUE</span>])
+    resampled &lt;-<span class="st"> </span><span class="kw">split</span>(.SD, <span class="kw">paste0</span>(.SD<span class="op">$</span>session_id, .SD<span class="op">$</span>search_id))[<span class="kw">sample.int</span>(n, n, <span class="dt">replace =</span> <span class="ot">TRUE</span>)]
+    <span class="kw">names</span>(resampled) &lt;-<span class="st"> </span><span class="dv">1</span><span class="op">:</span>n
+    resampled <span class="op">%&gt;%</span>
+<span class="st">      </span>dplyr<span class="op">::</span><span class="kw">bind_rows</span>(<span class="dt">.id =</span> <span class="st">&quot;sample&quot;</span>) <span class="op">%&gt;%</span>
+<span class="st">      </span><span class="kw">group_by</span>(session_id, search_id) <span class="op">%&gt;%</span>
+<span class="st">      </span><span class="kw">mutate</span>(<span class="dt">sample_id =</span> <span class="kw">paste</span>(session_id, search_id, <span class="kw">as.numeric</span>(<span class="kw">factor</span>(sample)), <span class="dt">sep =</span> <span class="st">&quot;-&quot;</span>)) <span class="op">%&gt;%</span>
+<span class="st">      </span>ungroup <span class="op">%&gt;%</span>
+<span class="st">      </span>{ wmf<span class="op">::</span><span class="kw">interleaved_preference</span>(.<span class="op">$</span>sample_id, .<span class="op">$</span>team) }
+  }, <span class="fl">0.0</span>)
+  <span class="kw">data.frame</span>(<span class="dt">sample =</span> <span class="dv">1</span><span class="op">:</span>m, <span class="dt">preference =</span> preferences, <span class="dt">method =</span> <span class="st">&quot;Sampling searches&quot;</span>, <span class="dt">stringsAsFactors =</span> <span class="ot">FALSE</span>)
+}, by =<span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;date&quot;</span>, <span class="st">&quot;group_id&quot;</span>)]
+prefs &lt;-<span class="st"> </span><span class="kw">rbind</span>(prefs_by_session, prefs_by_search)
+daily &lt;-<span class="st"> </span>prefs <span class="op">%&gt;%</span>
+<span class="st">  </span><span class="kw">group_by</span>(date, group_id, method) <span class="op">%&gt;%</span>
+<span class="st">  </span><span class="kw">summarize</span>(
+    <span class="dt">lower =</span> <span class="kw">quantile</span>(preference, <span class="fl">0.025</span>, <span class="dt">na.rm =</span> <span class="ot">TRUE</span>),
+    <span class="dt">upper =</span> <span class="kw">quantile</span>(preference, <span class="fl">0.975</span>, <span class="dt">na.rm =</span> <span class="ot">TRUE</span>)
+  ) <span class="op">%&gt;%</span>
+<span class="st">  </span>ungroup <span class="op">%&gt;%</span>
+<span class="st">  </span><span class="kw">left_join</span>(pref_daily, <span class="dt">by =</span> <span class="kw">c</span>(<span class="st">&quot;date&quot;</span>, <span class="st">&quot;group_id&quot;</span>, <span class="st">&quot;method&quot;</span>)) <span class="op">%&gt;%</span>
+<span class="st">  </span><span class="kw">mutate</span>(<span class="dt">preferred =</span> dplyr<span class="op">::</span><span class="kw">if_else</span>(observed <span class="op">&gt;</span><span class="st"> </span><span class="dv">0</span>, <span class="st">&quot;A&quot;</span>, <span class="st">&quot;B&quot;</span>)) <span class="op">%&gt;%</span>
+<span class="st">  </span><span class="kw">group_by</span>(group_id, method, preferred) <span class="op">%&gt;%</span>
+<span class="st">  </span><span class="kw">arrange</span>(date) <span class="op">%&gt;%</span>
+<span class="st">  </span><span class="kw">mutate</span>(<span class="dt">counter =</span> <span class="kw">cumsum</span>(<span class="op">!</span><span class="kw">is.na</span>(date))) <span class="op">%&gt;%</span>
+<span class="st">  </span>ungroup
+overall &lt;-<span class="st"> </span>prefs <span class="op">%&gt;%</span>
+<span class="st">  </span><span class="kw">group_by</span>(group_id, method, date) <span class="op">%&gt;%</span>
+<span class="st">  </span><span class="kw">summarize</span>(
+    <span class="dt">lower95 =</span> <span class="kw">quantile</span>(preference, <span class="fl">0.025</span>, <span class="dt">na.rm =</span> <span class="ot">TRUE</span>),
+    <span class="dt">lower80 =</span> <span class="kw">quantile</span>(preference, <span class="fl">0.1</span>, <span class="dt">na.rm =</span> <span class="ot">TRUE</span>),
+    <span class="dt">upper95 =</span> <span class="kw">quantile</span>(preference, <span class="fl">0.975</span>, <span class="dt">na.rm =</span> <span class="ot">TRUE</span>),
+    <span class="dt">upper80 =</span> <span class="kw">quantile</span>(preference, <span class="fl">0.9</span>, <span class="dt">na.rm =</span> <span class="ot">TRUE</span>),
+  ) <span class="op">%&gt;%</span>
+<span class="st">  </span><span class="kw">summarize</span>(
+    <span class="dt">lower95 =</span> <span class="kw">median</span>(lower95, <span class="dt">na.rm =</span> <span class="ot">TRUE</span>),
+    <span class="dt">upper95 =</span> <span class="kw">median</span>(upper95, <span class="dt">na.rm =</span> <span class="ot">TRUE</span>),
+    <span class="dt">lower80 =</span> <span class="kw">median</span>(lower80, <span class="dt">na.rm =</span> <span class="ot">TRUE</span>),
+    <span class="dt">upper80 =</span> <span class="kw">median</span>(upper80, <span class="dt">na.rm =</span> <span class="ot">TRUE</span>)
+  ) <span class="op">%&gt;%</span>
+<span class="st">  </span>ungroup <span class="op">%&gt;%</span>
+<span class="st">  </span><span class="kw">left_join</span>(pref_overall, <span class="dt">by =</span> <span class="kw">c</span>(<span class="st">&quot;group_id&quot;</span>, <span class="st">&quot;method&quot;</span>))</code></pre></div>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">ggplot</span>(<span class="kw">keep_where</span>(daily, <span class="op">!</span><span class="kw">is.na</span>(observed)), <span class="kw">aes</span>(<span class="dt">x =</span> date, <span class="dt">y =</span> observed)) <span class="op">+</span>
+<span class="st">  </span><span class="kw">geom_hline</span>(<span class="dt">yintercept =</span> <span class="dv">0</span>, <span class="dt">linetype =</span> <span class="st">&quot;dashed&quot;</span>) <span class="op">+</span>
+<span class="st">  </span><span class="kw">geom_ribbon</span>(<span class="kw">aes</span>(<span class="dt">ymin =</span> lower, <span class="dt">ymax =</span> upper), <span class="dt">alpha =</span> <span class="fl">0.25</span>) <span class="op">+</span>
+<span class="st">  </span><span class="kw">geom_line</span>() <span class="op">+</span>
+<span class="st">  </span><span class="kw">geom_segment</span>(
+    <span class="kw">aes</span>(<span class="dt">xend =</span> date, <span class="dt">yend =</span> <span class="kw">ifelse</span>(preferred <span class="op">==</span><span class="st"> &quot;A&quot;</span>, <span class="fl">0.275</span>, <span class="op">-</span><span class="fl">0.275</span>), <span class="dt">color =</span> preferred),
+    <span class="dt">linetype =</span> <span class="st">&quot;dotted&quot;</span>
+  ) <span class="op">+</span>
+<span class="st">  </span><span class="kw">geom_point</span>(<span class="kw">aes</span>(<span class="dt">color =</span> preferred)) <span class="op">+</span>
+<span class="st">  </span><span class="kw">geom_text</span>(
+    <span class="kw">aes</span>(<span class="dt">y =</span> <span class="kw">ifelse</span>(preferred <span class="op">==</span><span class="st"> &quot;A&quot;</span>, <span class="fl">0.3</span>, <span class="op">-</span><span class="fl">0.3</span>), <span class="dt">label =</span> counter, <span class="dt">color =</span> preferred),
+    <span class="dt">show.legend =</span> <span class="ot">FALSE</span>, <span class="dt">fontface =</span> <span class="st">&quot;bold&quot;</span>
+  ) <span class="op">+</span>
+<span class="st">  </span><span class="kw">scale_color_brewer</span>(<span class="dt">palette =</span> <span class="st">&quot;Set1&quot;</span>) <span class="op">+</span>
+<span class="st">  </span><span class="kw">facet_grid</span>(method <span class="op">~</span><span class="st"> </span>group_id) <span class="op">+</span>
+<span class="st">  </span><span class="kw">labs</span>(
+    <span class="dt">x =</span> <span class="st">&quot;Date&quot;</span>, <span class="dt">y =</span> <span class="kw">ifelse</span>(<span class="kw">is_html</span>(), <span class="st">&quot;B ← Preference → A&quot;</span>, <span class="st">&quot;B &lt; Preference &gt; A&quot;</span>),
+    <span class="dt">title =</span> <span class="st">&quot;Preference for results from two rankers, daily by group&quot;</span>,
+    <span class="dt">subtitle =</span> <span class="st">&quot;Showing counts of how many times users preferred one ranking over the other&quot;</span>,
+    <span class="dt">caption =</span> <span class="st">&quot;95% confidence intervals were bootstrapped using two different sampling approaches&quot;</span>
+  ) <span class="op">+</span>
+<span class="st">  </span>wmf<span class="op">::</span><span class="kw">theme_facet</span>(<span class="dv">14</span>, <span class="kw">ifelse</span>(<span class="kw">is_html</span>(), <span class="st">&quot;Source Sans Pro&quot;</span>, <span class="st">&quot;Gill Sans&quot;</span>))</code></pre></div>
+<div class="figure">
+<img src="index_files/figure-html/bootstrap_viz_daily-1.png" alt="**Figure 6**: While the preferences for ranking functions were not significantly higher or lower (the 95% bootstrapped confidence intervals cover 0 -- no preference) on a daily basis, there were more days when the users showed a slight preference for MLR results with the 1024-rescore window." width="\textwidth" />
+<p class="caption">
+<strong>Figure 6</strong>: While the preferences for ranking functions were not significantly higher or lower (the 95% bootstrapped confidence intervals cover 0 – no preference) on a daily basis, there were more days when the users showed a slight preference for MLR results with the 1024-rescore window.
+</p>
+</div>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r"><span class="kw">ggplot</span>(
+  <span class="kw">mutate</span>(overall, <span class="dt">method =</span> <span class="kw">sub</span>(<span class="st">&quot;</span><span class="ch">\\</span><span class="st">s&quot;</span>, <span class="st">&quot;</span><span class="ch">\n</span><span class="st">&quot;</span>, method)),
+  <span class="kw">aes</span>(<span class="dt">x =</span> method, <span class="dt">y =</span> observed)
+) <span class="op">+</span>
+<span class="st">  </span><span class="kw">geom_hline</span>(<span class="dt">yintercept =</span> <span class="dv">0</span>, <span class="dt">linetype =</span> <span class="st">&quot;dashed&quot;</span>) <span class="op">+</span>
+<span class="st">  </span><span class="kw">geom_linerange</span>(<span class="kw">aes</span>(<span class="dt">ymin =</span> lower95, <span class="dt">ymax =</span> upper95), <span class="dt">size =</span> <span class="fl">0.5</span>) <span class="op">+</span>
+<span class="st">  </span><span class="kw">geom_linerange</span>(<span class="kw">aes</span>(<span class="dt">ymin =</span> lower80, <span class="dt">ymax =</span> upper80), <span class="dt">size =</span> <span class="fl">1.5</span>) <span class="op">+</span>
+<span class="st">  </span><span class="kw">geom_label</span>(<span class="kw">aes</span>(<span class="dt">label =</span> <span class="kw">sprintf</span>(<span class="st">&quot;%.4f&quot;</span>, observed))) <span class="op">+</span>
+<span class="st">  </span><span class="kw">facet_wrap</span>(<span class="op">~</span><span class="st"> </span>group_id) <span class="op">+</span>
+<span class="st">  </span><span class="kw">labs</span>(
+    <span class="dt">x =</span> <span class="st">&quot;Bootstrap approach&quot;</span>, <span class="dt">y =</span> <span class="kw">ifelse</span>(<span class="kw">is_html</span>(), <span class="st">&quot;B ← Preference → A&quot;</span>, <span class="st">&quot;B &lt; Preference &gt; A&quot;</span>),
+    <span class="dt">title =</span> <span class="st">&quot;Preference for results from two rankers, by group&quot;</span>,
+    <span class="dt">caption =</span> <span class="st">&quot;80% (thick) and 95% (thin) confidence intervals were bootstrapped using two different sampling approaches&quot;</span>
+  ) <span class="op">+</span>
+<span class="st">  </span>wmf<span class="op">::</span><span class="kw">theme_facet</span>(<span class="dv">14</span>, <span class="kw">ifelse</span>(<span class="kw">is_html</span>(), <span class="st">&quot;Source Sans Pro&quot;</span>, <span class="st">&quot;Gill Sans&quot;</span>))</code></pre></div>
+<div class="figure">
+<img src="index_files/figure-html/bootstrap_viz_overall-1.png" alt="**Figure 7**: Overall, there were not statistically significant differences in preferences (the 95% bootstrapped confidence intervals cover 0 -- no preference), although the results suggest that users showed a slight preference for MLR results with the 1024-rescore window." width="\textwidth" />
+<p class="caption">
+<strong>Figure 7</strong>: Overall, there were not statistically significant differences in preferences (the 95% bootstrapped confidence intervals cover 0 – no preference), although the results suggest that users showed a slight preference for MLR results with the 1024-rescore window.
+</p>
+</div>
+</div>
+<div id="page-visit-times-1" class="section level3">
+<h3>Page visit times</h3>
+<p>As mentioned before, observing how long users stay on visited pages is a way to gauge the relevance of the search results in the context of trying to find a specific article to read. Figure 8 shows that compared to the BM25-provided results, pages that were provided by MLR had a higher probability of being open longer – indicating that users were staying longer on those clicked results. Between the two sets of MLR-provided results, pages that were provided by the 1024-rescore window MLR had a higher probability of staying open longer.</p>
+<div class="sourceCode"><pre class="sourceCode r"><code class="sourceCode r">temp &lt;-<span class="st"> </span>interleaved[<span class="op">!</span><span class="kw">is.na</span>(team) <span class="op">&amp;</span><span class="st"> </span>team <span class="op">!=</span><span class="st"> &quot;&quot;</span> <span class="op">&amp;</span><span class="st"> </span>valid <span class="op">==</span><span class="st"> </span><span class="ot">TRUE</span>, {
+  <span class="cf">if</span> (<span class="kw">any</span>(.SD<span class="op">$</span>event <span class="op">==</span><span class="st"> &quot;checkin&quot;</span>)) {
+    last_checkin &lt;-<span class="st"> </span><span class="kw">max</span>(.SD<span class="op">$</span>checkin, <span class="dt">na.rm =</span> <span class="ot">TRUE</span>)
+    idx &lt;-<span class="st"> </span><span class="kw">which</span>(checkins <span class="op">&gt;</span><span class="st"> </span>last_checkin)
+    <span class="cf">if</span> (<span class="kw">length</span>(idx) <span class="op">==</span><span class="st"> </span><span class="dv">0</span>) idx &lt;-<span class="st"> </span><span class="dv">16</span>
+    next_checkin &lt;-<span class="st"> </span>checkins[<span class="kw">min</span>(idx)]
+    status &lt;-<span class="st"> </span><span class="kw">ifelse</span>(last_checkin <span class="op">==</span><span class="st"> </span><span class="dv">420</span>, <span class="dv">0</span>, <span class="dv">3</span>)
+    data.table<span class="op">::</span><span class="kw">data.table</span>(
+      <span class="st">`</span><span class="dt">last check-in</span><span class="st">`</span> =<span class="st"> </span><span class="kw">as.integer</span>(last_checkin),
+      <span class="st">`</span><span class="dt">next check-in</span><span class="st">`</span> =<span class="st"> </span><span class="kw">as.integer</span>(next_checkin),
+      <span class="dt">status =</span> <span class="kw">as.integer</span>(status),
+      <span class="dt">team =</span> .SD<span class="op">$</span>team[<span class="dv">1</span>]
+    )
+  }
+}, by =<span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;group&quot;</span> =<span class="st"> &quot;group_id&quot;</span>, <span class="st">&quot;session_id&quot;</span>, <span class="st">&quot;search_id&quot;</span>)] <span class="op">%&gt;%</span>
+<span class="st">  </span>as.data.frame
+temp<span class="op">$</span>group <span class="op">%&lt;&gt;%</span><span class="st"> </span><span class="kw">factor</span>(
+  <span class="kw">c</span>(<span class="st">&quot;[A] BM25 vs [B] MLR (20)&quot;</span>, <span class="st">&quot;[A] BM25 vs [B] MLR (1024)&quot;</span>, <span class="st">&quot;[A] MLR (20) vs [B] MLR (1024)&quot;</span>),
+  <span class="kw">c</span>(<span class="st">&quot;1: BM25 vs LTR (20)&quot;</span>, <span class="st">&quot;2: BM25 vs LTR (1024)&quot;</span>, <span class="st">&quot;3: LTR (20) vs LTR (1024)&quot;</span>)
+)
+surv &lt;-<span class="st"> </span>survival<span class="op">::</span><span class="kw">Surv</span>(
+  <span class="dt">time =</span> temp<span class="op">$</span><span class="st">`</span><span class="dt">last check-in</span><span class="st">`</span>,
+  <span class="dt">time2 =</span> temp<span class="op">$</span><span class="st">`</span><span class="dt">next check-in</span><span class="st">`</span>,
+  <span class="dt">event =</span> temp<span class="op">$</span>status,
+  <span class="dt">type =</span> <span class="st">&quot;interval&quot;</span>
+)
+fit &lt;-<span class="st"> </span>survival<span class="op">::</span><span class="kw">survfit</span>(surv <span class="op">~</span><span class="st"> </span>temp<span class="op">$</span>group <span class="op">+</span><span class="st"> </span>temp<span class="op">$</span>team)
+km &lt;-<span class="st"> </span>survminer<span class="op">::</span><span class="kw">ggsurvplot</span>(
+  fit, <span class="dt">data =</span> temp, <span class="dt">palette =</span> <span class="st">&quot;Dark2&quot;</span>,
+  <span class="dt">title =</span> <span class="st">&quot;How long users stay on each team&#39;s results&quot;</span>,
+  <span class="dt">subtitle =</span> <span class="st">&quot;Kaplan–Meier curve of estimated survival probability&quot;</span>,
+  <span class="dt">xlab =</span> <span class="st">&quot;Time (s)&quot;</span>, <span class="dt">ylab =</span> <span class="st">&quot;Probability of visited page staying open this long&quot;</span>
+)
+km<span class="op">$</span>plot &lt;-<span class="st"> </span>km<span class="op">$</span>plot <span class="op">+</span>
+<span class="st">  </span><span class="kw">scale_y_continuous</span>(<span class="dt">labels =</span> scales<span class="op">::</span><span class="kw">percent_format</span>()) <span class="op">+</span>
+<span class="st">  </span><span class="kw">scale_x_continuous</span>(<span class="dt">labels =</span> <span class="cf">function</span>(x) {
+    mins &lt;-<span class="st"> </span><span class="kw">floor</span>(x <span class="op">/</span><span class="st"> </span><span class="dv">60</span>); secs &lt;-<span class="st"> </span>x <span class="op">%%</span><span class="st"> </span><span class="dv">60</span>
+    labs &lt;-<span class="st"> </span><span class="kw">sprintf</span>(<span class="st">&quot;%.0fm %.0fs&quot;</span>, mins, secs)
+    labs[mins <span class="op">==</span><span class="st"> </span><span class="dv">0</span>] &lt;-<span class="st"> </span><span class="kw">sprintf</span>(<span class="st">&quot;%.0fs&quot;</span>, secs[mins <span class="op">==</span><span class="st"> </span><span class="dv">0</span>])
+    labs[secs <span class="op">==</span><span class="st"> </span><span class="dv">0</span>] &lt;-<span class="st"> </span><span class="kw">sprintf</span>(<span class="st">&quot;%.0fm&quot;</span>, mins[secs <span class="op">==</span><span class="st"> </span><span class="dv">0</span>])
+    <span class="kw">return</span>(labs)
+  }, <span class="dt">breaks =</span> <span class="kw">c</span>(<span class="fl">0.5</span>, <span class="dv">1</span><span class="op">:</span><span class="dv">7</span>) <span class="op">*</span><span class="st"> </span><span class="dv">60</span>) <span class="op">+</span>
+<span class="st">  </span><span class="kw">facet_wrap</span>(<span class="op">~</span><span class="st"> </span>group) <span class="op">+</span>
+<span class="st">  </span>wmf<span class="op">::</span><span class="kw">theme_facet</span>(<span class="dv">14</span>, <span class="kw">ifelse</span>(<span class="kw">is_html</span>(), <span class="st">&quot;Source Sans Pro&quot;</span>, <span class="st">&quot;Gill Sans&quot;</span>))
+<span class="kw">print</span>(km)</code></pre></div>
+<div class="figure">
+<img src="index_files/figure-html/surv_il-1.png" alt="**Figure 8**: Compared to the BM25-provided results, pages that were provided by MLR had a higher probability of being open longer -- indicating that users were staying longer on those clicked results. Between the two sets of MLR-provided results, pages that were provided by the 1024-rescore window MLR had a higher probability of staying open." width="\textwidth" />
+<p class="caption">
+<strong>Figure 8</strong>: Compared to the BM25-provided results, pages that were provided by MLR had a higher probability of being open longer – indicating that users were staying longer on those clicked results. Between the two sets of MLR-provided results, pages that were provided by the 1024-rescore window MLR had a higher probability of staying open.
+</p>
+</div>
+</div>
+</div>
+</div>
+<div id="conclusion" class="section level1">
+<h1>Conclusion</h1>
+<p>While we did not see overwhelming evidence that LTR is better than the status quo, we saw results that indicate a slight improvement. MLR@20’s clikthrough rate was slightly higher (although not statistically significantly higher), users preferred LTR over BM25 in the interleaved results more often than the other way, and overall there is a slight preference for LTR results over BM25 results. We did observe that MLR@20 users were statistically significantly more likely to click on the first search result first than users in the control group were to click on theirs.</p>
+<div id="discussion" class="section level2">
+<h2>Discussion</h2>
+<p>Regarding the rescore window, 1024 isn’t incredibly expensive compared to 20. It costs more, but it doesn’t seem prohibitive. In the load tests with rescore windows up to 4096, it was all fine. The benefit we would get from a larger rescore window is the ability to pull things up from further down in the retrieval query phase. The theory is that there are plenty of good things down there, and if we allow the LTR to reach down that far it will find them. This gives new information to the DBN, which hopefully builds a feedback loop where the LTR brings in some new result types from further down that it thinks are good, users evaluate them, and then the DBN learns new labels based on those to inform the next model we build.</p>
+</div>
+<div id="acknowledgement" class="section level2">
+<h2>Acknowledgement</h2>
+<p>We would like to thank our colleague Chelsy Xie for her review of this report.</p>
+</div>
+</div>
+<div id="references" class="section level1 unnumbered">
+<h1>References</h1>
+<div id="refs" class="references">
+<div id="ref-R-rmarkdown">
+<p>Allaire, J., Cheng, J., Xie, Y., McPherson, J., Chang, W., Allen, J., et al. (2016). <em>Rmarkdown: Dynamic documents for r</em>. <a href="http://rmarkdown.rstudio.com" class="uri">http://rmarkdown.rstudio.com</a></p>
+</div>
+<div id="ref-R-magrittr">
+<p>Bache, S. M., &amp; Wickham, H. (2014). <em>Magrittr: A forward-pipe operator for r</em>. <a href="https://CRAN.R-project.org/package=magrittr" class="uri">https://CRAN.R-project.org/package=magrittr</a></p>
+</div>
+<div id="ref-BM25-1">
+<p>Bernhardson, E., Causse, D., Jones, T., Popov, M., &amp; Tankersley, D. (2016). <em>Improving search result relevancy on wikipedia with bm25 ranking</em>. <a href="https://wikimedia-research.github.io/Discovery-Search-Test-BM25/" class="uri">https://wikimedia-research.github.io/Discovery-Search-Test-BM25/</a></p>
+</div>
+<div id="ref-BM25-2">
+<p>Bernhardson, E., Causse, D., Jones, T., Tankersley, D., &amp; Xie, C. (2017). <em>Second bm25 a/b test analysis</em>. <a href="https://wikimedia-research.github.io/Discovery-Search-2ndTest-BM25_jazhth/" class="uri">https://wikimedia-research.github.io/Discovery-Search-2ndTest-BM25_jazhth/</a></p>
+</div>
+<div id="ref-DBNclix-2009">
+<p>Chapelle, O., &amp; Zhang, Y. (2009). <em>A dynamic bayesian network click model for web search ranking</em>. New York, New York, USA: ACM.</p>
+</div>
+<div id="ref-Interleaved:2012">
+<p>Chapelle, O., Joachims, T., Radlinski, F., &amp; Yue, Y. (2012). Large-scale validation and analysis of interleaved search evaluation. <em>ACM Trans. Inf. Syst.</em>, <em>30</em>(1), 6:1–6:41. doi:<a href="https://doi.org/10.1145/2094072.2094078">10.1145/2094072.2094078</a></p>
+</div>
+<div id="ref-R-dt">
+<p>Dowle, M., &amp; Srinivasan, A. (2017). <em>Data.table: Extension of ‘data.frame‘</em>. <a href="https://CRAN.R-project.org/package=data.table" class="uri">https://CRAN.R-project.org/package=data.table</a></p>
+</div>
+<div id="ref-R-wmf">
+<p>Keyes, O., &amp; Popov, M. (2017). <em>Wmf: R code for wikimedia foundation internal usage</em>. <a href="https://phabricator.wikimedia.org/diffusion/1821/" class="uri">https://phabricator.wikimedia.org/diffusion/1821/</a></p>
+</div>
+<div id="ref-R-jsonlite">
+<p>Ooms, J. (2014). The jsonlite package: A practical and consistent mapping between json data and r objects. <em>arXiv:1403.2805 [stat.CO]</em>. <a href="https://arxiv.org/abs/1403.2805" class="uri">https://arxiv.org/abs/1403.2805</a></p>
+</div>
+<div id="ref-R-base">
+<p>R Core Team. (2016). <em>R: A language and environment for statistical computing</em>. Vienna, Austria: R Foundation for Statistical Computing. <a href="https://www.R-project.org/" class="uri">https://www.R-project.org/</a></p>
+</div>
+<div id="ref-R-ggplot2">
+<p>Wickham, H. (2009). <em>Ggplot2: Elegant graphics for data analysis</em>. Springer-Verlag New York. <a href="http://ggplot2.org" class="uri">http://ggplot2.org</a></p>
+</div>
+<div id="ref-R-tidyr">
+<p>Wickham, H. (2017). <em>Tidyr: Easily tidy data with ’spread()’ and ’gather()’ functions</em>. <a href="https://CRAN.R-project.org/package=tidyr" class="uri">https://CRAN.R-project.org/package=tidyr</a></p>
+</div>
+<div id="ref-R-dplyr">
+<p>Wickham, H., &amp; Francois, R. (2016). <em>Dplyr: A grammar of data manipulation</em>. <a href="https://CRAN.R-project.org/package=dplyr" class="uri">https://CRAN.R-project.org/package=dplyr</a></p>
+</div>
+</div>
+</div>
+
+<div id="wmf" title="By Wikimedia Foundation (Wikimedia Foundation) [CC BY-SA 3.0 (http://creativecommons.org/licenses/by-sa/3.0)], via Wikimedia Commons"></div>
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://tools-static.wmflabs.org/cdnjs/ajax/libs/mathjax/2.6.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

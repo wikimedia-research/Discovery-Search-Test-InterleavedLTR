@@ -50,8 +50,8 @@ data/
 
 # Cache & Files
 docs/index_cache/
-docs/index_files/
+# docs/index_files/
 
 # Don't include output for now:
-docs/index.html
-docs/index.pdf
+# docs/index.html
+# docs/index.pdf
